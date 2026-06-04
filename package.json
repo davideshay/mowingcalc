@@ -1,0 +1,30 @@
+{
+  "name": "mowingcalc",
+  "version": "0.1.0",
+  "description": "Intelligent lawn mowing scheduler with Home Assistant integration",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.0",
+    "node-fetch": "^3.3.2",
+    "pino": "^9.5.0",
+    "pino-pretty": "^11.3.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
