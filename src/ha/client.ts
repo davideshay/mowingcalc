@@ -219,6 +219,52 @@ export class HAClient {
     await this.callService('switch', 'turn_off', { entity_id: entityId });
   }
 
+  // Lawn mower domain (Segway Navimow)
+  async startMowing(entityId: string): Promise<void> {
+    await this.callService('lawn_mower', 'start_mowing', { entity_id: entityId });
+  }
+
+  async dockMower(entityId: string): Promise<void> {
+    await this.callService('lawn_mower', 'dock', { entity_id: entityId });
+  }
+
+  async pauseMowing(entityId: string): Promise<void> {
+    await this.callService('lawn_mower', 'pause', { entity_id: entityId });
+  }
+
+  async resumeMowing(entityId: string): Promise<void> {
+    await this.callService('lawn_mower', 'resume', { entity_id: entityId });
+  }
+
+  // Get mower state
+  async getMowerState(entityId: string): Promise<HAEntityState> {
+    return this.getEntityState(entityId);
+  }
+
+  // Get battery level
+  async getBatteryLevel(entityId: string): Promise<number | null> {
+    try {
+      const state = await this.getEntityState(entityId);
+      return HAClient.parseNumericState(state.state);
+    } catch {
+      return null;
+    }
+  }
+
+  // Write to HA input helpers
+  async writeInputNumber(entityId: string, value: number): Promise<void> {
+    await this.callService('input_number', 'set_value', { entity_id: entityId, value });
+  }
+
+  async writeInputBoolean(entityId: string, state: boolean): Promise<void> {
+    const service = state ? 'turn_on' : 'turn_off';
+    await this.callService('input_boolean', service, { entity_id: entityId });
+  }
+
+  async writeInputSelect(entityId: string, option: string): Promise<void> {
+    await this.callService('input_select', 'select_option', { entity_id: entityId, option });
+  }
+
   // Get sun state (sunrise/sunset times)
   async getSunState(): Promise<HAEntityState> {
     return this.getEntityState('sun.sun');

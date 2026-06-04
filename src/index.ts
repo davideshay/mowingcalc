@@ -9,6 +9,8 @@ import { HAClient } from './ha/client';
 import { initializeDatabase } from './db/initialize';
 import { ConfigLoader } from './config/loader';
 import { AppConfig } from './config/schema';
+import { DecisionEngine } from './algorithm/decision-engine';
+import { AlgorithmScheduler } from './algorithm/scheduler';
 
 const logger = pino({
   level: process.env.APP_LOG_LEVEL || 'info',
@@ -16,6 +18,10 @@ const logger = pino({
     ? { target: 'pino-pretty' }
     : undefined,
 });
+
+let engine: DecisionEngine | null = null;
+let scheduler: AlgorithmScheduler | null = null;
+let currentConfig: AppConfig | null = null;
 
 function createApp(): express.Application {
   const app = express();
@@ -45,6 +51,12 @@ function createApp(): express.Application {
 
   const ha = haUrl && haToken ? new HAClient(haUrl, haToken) : null;
 
+  // Initialize algorithm engine and scheduler
+  engine = new DecisionEngine(db, ha, config);
+  scheduler = new AlgorithmScheduler(engine);
+  currentConfig = config;
+  scheduler.start(config.algorithmRunInterval);
+
   // Health check endpoint
   app.get('/api/health', (_req, res) => {
     const health: Record<string, unknown> = {
@@ -71,6 +83,8 @@ function createApp(): express.Application {
     try {
       configLoader.save({ ...config, ...req.body });
       config = configLoader.load();
+      if (engine) engine.updateConfig(config);
+      if (currentConfig) currentConfig = config;
       res.json(config);
     } catch (err) {
       res.status(400).json({ error: 'Invalid configuration', details: String(err) });
@@ -85,22 +99,110 @@ function createApp(): express.Application {
         configLoader.update(key, value);
       }
       config = configLoader.load();
+      if (engine) engine.updateConfig(config);
+      if (currentConfig) currentConfig = config;
       res.json(config);
     } catch (err) {
       res.status(400).json({ error: 'Invalid configuration', details: String(err) });
     }
   });
 
-  // Placeholder routes for future implementation
-  app.get('/api/mow-history', (_req, res) => {
-    res.json([]);
+  // Algorithm state endpoint
+  app.get('/api/algorithm-state', async (_req, res) => {
+    try {
+      const result = await engine!.run();
+      res.json({
+        status: 'ok',
+        should_mow: result.should_mow,
+        reason: result.reason,
+        growth_mm: result.growth_estimate.growth_since_mow_mm,
+        daily_growth_mm: result.growth_estimate.daily_growth_mm,
+        rain_delay_hours: result.rain_delay.earliest_delay_hours,
+        is_safe_to_mow: result.rain_delay.is_safe_to_mow,
+        hours_since_mow: result.hours_since_mow,
+        last_mow_time: result.last_mow_time,
+        next_review: result.next_review_time.toISOString(),
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err) {
+      res.status(500).json({ error: 'Algorithm run failed', details: String(err) });
+    }
   });
 
-  app.get('/api/algorithm-state', (_req, res) => {
-    res.json({
-      status: 'initialized',
-      message: 'Algorithm not yet implemented - Phase 2',
-    });
+  // Run algorithm manually and trigger mower if needed
+  app.post('/api/algorithm/run', async (_req, res) => {
+    try {
+      const result = await engine!.run();
+      if (result.should_mow && ha) {
+        await engine!.triggerMower();
+        logger.info({ reason: result.reason }, 'Mower triggered');
+      }
+      res.json({ success: true, should_mow: result.should_mow, reason: result.reason });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to run algorithm', details: String(err) });
+    }
+  });
+
+  // Trigger mower directly
+  app.post('/api/mow/start', async (_req, res) => {
+    try {
+      await engine!.triggerMower();
+      res.json({ success: true, message: 'Mower started' });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to start mower', details: String(err) });
+    }
+  });
+
+  // Get mower status
+  app.get('/api/mow/status', async (_req, res) => {
+    try {
+      const state = await engine!.getMowerState();
+      res.json(state);
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to get mower status', details: String(err) });
+    }
+  });
+
+  // Mow event history
+  app.get('/api/mow/events', (_req, res) => {
+    try {
+      const events = db.prepare(`
+        SELECT * FROM mow_events
+        ORDER BY started_at DESC
+        LIMIT 50
+      `).all();
+      res.json(events);
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to get mow events', details: String(err) });
+    }
+  });
+
+  // Recent algorithm run history
+  app.get('/api/algorithm/history', (_req, res) => {
+    try {
+      const runs = db.prepare(`
+        SELECT * FROM algorithm_runs
+        ORDER BY run_time DESC
+        LIMIT 50
+      `).all();
+      res.json(runs);
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to get history', details: String(err) });
+    }
+  });
+
+  // Growth history for charting
+  app.get('/api/growth-history', (_req, res) => {
+    try {
+      const history = db.prepare(`
+        SELECT * FROM growth_history
+        ORDER BY timestamp DESC
+        LIMIT 100
+      `).all();
+      res.json(history);
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to get growth history', details: String(err) });
+    }
   });
 
   // Serve React frontend (built static files)
@@ -128,6 +230,7 @@ async function main(): Promise<void> {
   // Graceful shutdown
   process.on('SIGTERM', () => {
     logger.info('SIGTERM received, shutting down gracefully');
+    scheduler?.stop();
     server.close(() => {
       logger.info('Server closed');
       process.exit(0);
@@ -136,6 +239,7 @@ async function main(): Promise<void> {
 
   process.on('SIGINT', () => {
     logger.info('SIGINT received, shutting down gracefully');
+    scheduler?.stop();
     server.close(() => {
       logger.info('Server closed');
       process.exit(0);

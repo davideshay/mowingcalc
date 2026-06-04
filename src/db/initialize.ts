@@ -32,6 +32,7 @@ export function initializeDatabase(dbPath: string): Database.Database {
     -- Weather data cache (avoids hammering HA API)
     CREATE TABLE IF NOT EXISTS weather_cache (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      metric TEXT NOT NULL,
       entity_id TEXT NOT NULL,
       timestamp DATETIME NOT NULL,
       data TEXT NOT NULL,
@@ -74,7 +75,7 @@ export function initializeDatabase(dbPath: string): Database.Database {
   // Create indexes for common queries
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_weather_cache_entity_timestamp
-      ON weather_cache(entity_id, timestamp);
+      ON weather_cache(metric, timestamp);
     CREATE INDEX IF NOT EXISTS idx_algorithm_runs_time
       ON algorithm_runs(run_time);
     CREATE INDEX IF NOT EXISTS idx_growth_history_timestamp

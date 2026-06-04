@@ -31,6 +31,7 @@ const RainDelayModelSchema = z.object({
   heavyRainDelay: z.number().positive().default(48),
   sunDryingRate: z.number().min(0).max(1).default(0.1),
   tempDryingFactor: z.number().min(0).default(0.05),
+  soilType: z.enum(['sand', 'loam', 'clay']).default('loam'),
 });
 
 // Entity groups - maps metric types to arrays of HA entity IDs
@@ -48,14 +49,26 @@ const EntityGroupsSchema = z.object({
   weatherForecastEntity: z.string().default('weather.home'),
 
   // Mower control
-  mowerEntity: z.string().default('switch.robot_mower'),
-  mowerStateEntity: z.string().default('sensor.robot_mower_status'),
+  mowerType: z.enum(['switch', 'lawn_mower', 'custom']).default('lawn_mower'),
+  mowerEntity: z.string().default('lawn_mower.navimow'),
+  mowerStateEntity: z.string().default('sensor.navimow_state'),
+  mowerBatteryEntity: z.string().default('sensor.navimow_battery'),
 
   // Last mow time (if not available from mower entity)
   lastMowTimeEntity: z.string().default(''),
 
   // Sun entity (usually fixed)
   sunEntity: z.string().default('sun.sun'),
+});
+
+// HA Input Helpers config (optional)
+const HAInputHelpersSchema = z.object({
+  enabled: z.boolean().default(false),
+  nextMowNumber: z.string().default('input_number.next_predicted_mow'),
+  growthEstimateNumber: z.string().default('input_number.growth_estimate_mm'),
+  rainDelayNumber: z.string().default('input_number.rain_delay_hours'),
+  mowRecommendedBoolean: z.string().default('input_boolean.mow_recommended'),
+  mowReasonSelect: z.string().default('input_select.mow_reason'),
 });
 
 // Main application configuration schema
@@ -86,6 +99,9 @@ export const AppConfigSchema = z.object({
 
   // Home Assistant entity groups (multiple sensors per metric, median aggregated)
   entityGroups: EntityGroupsSchema.default({}),
+
+  // HA Input Helpers (optional)
+  haInputHelpers: HAInputHelpersSchema.default({}),
 });
 
 export type AppConfig = z.infer<typeof AppConfigSchema>;
