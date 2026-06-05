@@ -34,6 +34,13 @@ export const DEFAULT_CONFIG: AppConfig = {
   // Weather thresholds
   maxPrecipitationChance: 30, // % - don't mow if forecast exceeds this
 
+  // Forecast lookahead (mow proactively if rain is coming in next N days)
+  forecastLookaheadDays: 3,
+
+  // Home Assistant connection (can also be set via HA_URL/HA_TOKEN env vars)
+  haUrl: '',
+  haToken: '',
+
   // Mowing time windows (will be expanded with sunset-relative notation)
   mowingWindows: {
     monday: [{ start: '08:00', end: '18:00' }],

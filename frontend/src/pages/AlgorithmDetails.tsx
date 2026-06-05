@@ -1,5 +1,6 @@
 import { useAlgorithmState, useConfig } from '../hooks/useApi';
 import { format } from 'date-fns';
+import { WeatherSummary } from '../components/weather/WeatherSummary';
 
 export function AlgorithmDetails() {
   const { data: algo, loading: algoLoading } = useAlgorithmState();
@@ -83,6 +84,9 @@ export function AlgorithmDetails() {
           )}
         </div>
       </div>
+
+      {/* Weather Summary */}
+      <WeatherSummary />
     </div>
   );
 }

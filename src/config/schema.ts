@@ -94,6 +94,13 @@ export const AppConfigSchema = z.object({
   // Weather thresholds
   maxPrecipitationChance: z.number().min(0).max(100).default(30),
 
+  // Forecast lookahead (mow proactively if rain is coming in next N days)
+  forecastLookaheadDays: z.number().min(1).max(7).default(3),
+
+  // Home Assistant connection (can also be set via HA_URL/HA_TOKEN env vars)
+  haUrl: z.string().default(''),
+  haToken: z.string().default(''),
+
   // Mowing windows
   mowingWindows: MowingWindowsSchema.default({}),
 

@@ -48,7 +48,7 @@ export class DecisionEngine {
    */
   public async run(): Promise<DecisionResult> {
     const { growthLowerLimit, growthUpperLimit, minTimeBetweenMows, maxTimeBetweenMows } = this.config;
-    const { avgMowingDuration, maxPrecipitationChance } = this.config;
+    const { avgMowingDuration, maxPrecipitationChance, forecastLookaheadDays } = this.config;
 
     // 1. Get last mow time from HA
     const lastMowTime = await this.getLastMowTime();
@@ -68,6 +68,9 @@ export class DecisionEngine {
     const forecastHours = Math.ceil(avgMowingDuration / 60) + 1;
     const forecastSafe = await this.checkForecast(forecastHours, maxPrecipitationChance);
 
+    // 5b. Check weekly forecast lookahead (should we mow proactively?)
+    const rainComingSoon = await this.checkForecastLookahead(forecastLookaheadDays, maxPrecipitationChance);
+
     // 6. Check mowing window
     const inMowingWindow = this.isInMowingWindow();
 
@@ -78,6 +81,7 @@ export class DecisionEngine {
       lastMowTime,
       hoursSinceMow,
       forecastSafe,
+      rainComingSoon,
       inMowingWindow,
       growthLowerLimit,
       growthUpperLimit,
@@ -97,13 +101,14 @@ export class DecisionEngine {
     lastMowTime: Date | null;
     hoursSinceMow: number;
     forecastSafe: boolean;
+    rainComingSoon: boolean;
     inMowingWindow: boolean;
     growthLowerLimit: number;
     growthUpperLimit: number;
     minTimeBetweenMows: number;
     maxTimeBetweenMows: number;
   }): DecisionResult {
-    const { growth, rainDelay, hoursSinceMow, forecastSafe, inMowingWindow } = params;
+    const { growth, rainDelay, hoursSinceMow, forecastSafe, rainComingSoon, inMowingWindow } = params;
     const { growthLowerLimit, growthUpperLimit, minTimeBetweenMows, maxTimeBetweenMows } = params;
     const growthMm = growth.growth_since_mow_mm;
 
@@ -151,7 +156,17 @@ export class DecisionEngine {
       );
     }
 
-    // Check 7: Growth above lower limit, predict crossing upper limit
+    // Check 7: Growth above lower limit + rain coming soon -> MOW PROACTIVELY
+    // This is the new lookahead logic: if we have enough growth AND rain is coming,
+    // mow now before the rain makes the soil too wet
+    if (growthMm >= growthLowerLimit && rainComingSoon) {
+      return this.mow(
+        `Proactive mow: growth ${growthMm.toFixed(1)}mm with rain expected - mow before soil gets wet`,
+        growth, rainDelay, params.lastMowTime, hoursSinceMow,
+      );
+    }
+
+    // Check 8: Growth above lower limit, predict crossing upper limit
     // If forecast safe for predicted window -> wait, else mow now
     if (growthMm >= growthLowerLimit && forecastSafe) {
       return this.noMow(
@@ -223,6 +238,68 @@ export class DecisionEngine {
       return true;
     } catch {
       return true; // No forecast available = proceed
+    }
+  }
+
+  /**
+   * Look ahead using hourly forecast for first 24 hours, then daily forecast beyond that.
+   * Returns true if there's a significant chance of rain, meaning we should consider
+   * mowing now if growth is sufficient.
+   */
+  private async checkForecastLookahead(days: number, maxChance: number): Promise<boolean> {
+    if (!this.ha) return false; // No HA = can't lookahead
+    try {
+      // Get both hourly and daily forecasts in parallel
+      const [hourlyForecast, dailyForecast] = await Promise.all([
+        this.ha.getWeatherForecast(this.config.entityGroups.weatherForecastEntity, 'hourly').catch(() => []),
+        this.ha.getWeatherForecast(this.config.entityGroups.weatherForecastEntity, 'daily').catch(() => []),
+      ]);
+
+      // First 24 hours: use hourly forecast for precision
+      const hoursToCheck = Math.min(24, Math.ceil(days * 24));
+      let rainHours = 0;
+      let consecutiveRainHours = 0;
+      let maxConsecutiveRainHours = 0;
+
+      for (let i = 0; i < hoursToCheck && i < hourlyForecast.length; i++) {
+        const p = hourlyForecast[i].precipitation_probability;
+        if (p !== undefined && p > maxChance) {
+          rainHours++;
+          consecutiveRainHours++;
+          maxConsecutiveRainHours = Math.max(maxConsecutiveRainHours, consecutiveRainHours);
+        } else {
+          consecutiveRainHours = 0;
+        }
+      }
+
+      // Beyond 24 hours: use daily forecast
+      let rainDays = 0;
+      let consecutiveRainDays = 0;
+      let maxConsecutiveRainDays = 0;
+
+      // Skip today (index 0) - we already checked 24h with hourly
+      for (let i = 1; i < days && i < dailyForecast.length; i++) {
+        const p = dailyForecast[i].precipitation_probability;
+        if (p !== undefined && p > maxChance) {
+          rainDays++;
+          consecutiveRainDays++;
+          maxConsecutiveRainDays = Math.max(maxConsecutiveRainDays, consecutiveRainDays);
+        } else {
+          consecutiveRainDays = 0;
+        }
+      }
+
+      // Return true if rain is coming:
+      // - At least 3 consecutive hours of rain in next 24h, OR
+      // - At least 2 consecutive days of rain beyond 24h, OR
+      // - More than half the daily forecast has rain
+      return (
+        maxConsecutiveRainHours >= 3 ||
+        maxConsecutiveRainDays >= 2 ||
+        (dailyForecast.length > 1 && rainDays > (days - 1) / 2)
+      );
+    } catch {
+      return false; // No forecast available = can't lookahead
     }
   }
 

@@ -21,17 +21,23 @@ export function History() {
       {/* Growth chart */}
       <div className="card">
         <h2 className="text-lg font-semibold mb-4">Growth Over Time</h2>
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={growth?.map((g: any) => ({ time: format(new Date(g.timestamp), 'MM/dd HH:mm'), growth: g.growth_mm })) || []}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="time" />
-              <YAxis />
-              <Tooltip />
-              <Line type="monotone" dataKey="growth" stroke="#16a34a" strokeWidth={2} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+        {growth && growth.length > 0 ? (
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={growth.map((g: any) => ({ time: format(new Date(g.timestamp), 'MM/dd HH:mm'), growth: g.growth_mm }))}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="time" />
+                <YAxis />
+                <Tooltip />
+                <Line type="monotone" dataKey="growth" stroke="#16a34a" strokeWidth={2} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="h-64 flex items-center justify-center text-gray-500">
+            No growth data recorded yet
+          </div>
+        )}
       </div>
 
       {/* Mow events */}

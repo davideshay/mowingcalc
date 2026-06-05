@@ -42,11 +42,11 @@ function createApp(): express.Application {
   logger.info('Configuration loaded from database');
 
   // Initialize HA client
-  const haUrl = process.env.HA_URL;
-  const haToken = process.env.HA_TOKEN;
+  const haUrl = process.env.HA_URL || config.haUrl;
+  const haToken = process.env.HA_TOKEN || config.haToken;
 
   if (!haUrl || !haToken) {
-    logger.warn('HA_URL or HA_TOKEN not set - HA integration will be unavailable');
+    logger.warn('HA_URL/HA_TOKEN not set - HA integration will be unavailable');
   }
 
   const ha = haUrl && haToken ? new HAClient(haUrl, haToken) : null;
