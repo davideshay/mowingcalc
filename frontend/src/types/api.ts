@@ -22,11 +22,24 @@ export interface AlgorithmStateResponse {
     last_significant_rain: string | null;
     last_rain_mm: number;
     rain_intensity: 'none' | 'light' | 'moderate' | 'heavy';
-    base_delay_hours: number;
-    soil_factor: number;
-    weather_factor: number;
+    hours_since_rain: number;
+    initial_soil_moisture_pct: number;
+    drying_time_constant: number;
+    effective_tau: number;
+    sun_drying_modifier: number;
+    temp_drying_modifier: number;
     sun_drying_reduction: number;
     temp_drying_reduction: number;
+    // Robot mower model fields
+    mower_weight_lbs: number;
+    compaction_threshold: number;
+    safe_moisture_threshold: number;
+    optimal_moisture_threshold: number;
+    surface_dry_factor: number;
+    time_to_safe_hours: number;
+    time_to_optimal_hours: number;
+    min_delay_floor_hours: number;
+    max_delay_ceil_hours: number;
   };
   hours_since_mow: number;
   last_mow_time: string | null;
@@ -59,6 +72,9 @@ export interface ConfigResponse {
     tempDryingFactor: number;
     soilType: 'sand' | 'loam' | 'clay';
     significantRainThreshold: number;
+    mowerWeightLbs: number;
+    compactionThreshold: number;
+    surfaceDryFactor: number;
   };
   minTimeBetweenMows: number;
   maxTimeBetweenMows: number;

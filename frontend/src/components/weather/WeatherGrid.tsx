@@ -93,22 +93,29 @@ function cell(h: HourData | null, units: DisplayUnits, t: number) {
   const tip = `${timeLabel} | Rain:${rain.toFixed(2)}${lenU}/h Temp:${Math.round(temp)}${tmpU} Sun:${(h.sunshine_hours * 100) | 0}%`;
 
   return (
-    <td
-      className={`py-2 px-1 text-center ${hasRain ? (isSignificant ? 'bg-red-50' : 'bg-blue-50') : ''}`}
-      style={{ minWidth: '64px', width: '64px' }}
-      title={tip}
-    >
-      <div className="flex flex-col items-center gap-0.5">
-        <div className="flex items-center text-lg leading-none">
-          <span className="text-base">{weatherIcon(h.sunshine_hours)}</span>
-          {rainIcon(h.rainfall_mm, t)}
-        </div>
-        <span className={`text-base font-mono font-semibold ${
-          isSignificant ? 'text-red-600' : hasRain ? 'text-blue-600' : 'text-gray-800'
-        }`}>{Math.round(temp)}</span>
-      </div>
-    </td>
-  );
+     <td
+       className={`py-2 px-1 text-center ${hasRain ? (isSignificant ? 'bg-red-50' : 'bg-blue-50') : ''}`}
+       style={{ minWidth: '64px', width: '64px' }}
+       title={tip}
+     >
+       <div className="flex flex-col items-center gap-0.5">
+         <div className="flex items-center text-lg leading-none">
+           <span className="text-base">{weatherIcon(h.sunshine_hours)}</span>
+           {rainIcon(h.rainfall_mm, t)}
+         </div>
+         <span className={`text-base font-mono font-semibold ${
+           isSignificant ? 'text-red-600' : hasRain ? 'text-blue-600' : 'text-gray-800'
+         }`}>{Math.round(temp)}</span>
+         {hasRain && (
+           <span className={`text-[10px] font-mono font-medium ${
+             isSignificant ? 'text-red-500' : 'text-blue-500'
+           }`} title={`${rain.toFixed(2)}${lenU}/h rain`}>
+             {rain.toFixed(2)}{lenU}
+           </span>
+         )}
+       </div>
+     </td>
+   );
 }
 
 export function WeatherGrid({ hourly, units, significantThreshold }: Props) {

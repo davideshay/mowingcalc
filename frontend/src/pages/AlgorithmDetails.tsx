@@ -106,151 +106,250 @@ export function AlgorithmDetails() {
       </div>
 
       {/* Rain Delay Model - FULL BREAKDOWN */}
-      <div className="card">
-        <h2 className="text-lg font-semibold mb-4">Rain Delay Model</h2>
+       <div className="card">
+         <h2 className="text-lg font-semibold mb-4">Rain Delay Model</h2>
 
-        {/* Safe to mow banner */}
-        <div className={`p-4 rounded-lg mb-4 ${algo?.is_safe_to_mow ? 'bg-green-50 border border-green-200' : 'bg-amber-50 border border-amber-200'}`}>
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text-sm font-medium text-gray-600">Safe to mow?</span>
-              <div className={`text-2xl font-bold mt-1 ${algo?.is_safe_to_mow ? 'text-green-700' : 'text-amber-700'}`}>
-                {algo?.is_safe_to_mow ? 'Yes' : 'No'}
-              </div>
-            </div>
-            <div className="text-right">
-              {!algo?.is_safe_to_mow && (
-                <>
-                  <div className="text-sm text-gray-600">Earliest safe in</div>
-                  <div className="text-2xl font-bold text-amber-700">{algo?.rain_delay_hours?.toFixed(0)}h</div>
-                  <div className="text-xs text-gray-500 mt-1">Optimal: {algo?.optimal_delay_hours?.toFixed(0)}h</div>
-                </>
-              )}
-              {algo?.is_safe_to_mow && algo?.safe_to_mow_time && (
+         {/* Safe to mow banner */}
+         <div className={`p-4 rounded-lg mb-4 ${algo?.is_safe_to_mow ? 'bg-green-50 border border-green-200' : 'bg-amber-50 border border-amber-200'}`}>
+           <div className="flex items-center justify-between">
+             <div>
+               <span className="text-sm font-medium text-gray-600">Safe to mow?</span>
+               <div className={`text-2xl font-bold mt-1 ${algo?.is_safe_to_mow ? 'text-green-700' : 'text-amber-700'}`}>
+                 {algo?.is_safe_to_mow ? 'Yes' : 'No'}
+               </div>
+             </div>
+             <div className="text-right">
+               {!algo?.is_safe_to_mow && (
                  <>
-                   <div className="text-sm text-gray-600">Safe to mow since</div>
-                   {(() => {
-                     const safeSince = new Date(algo.safe_to_mow_time);
-                     const hoursAgo = (Date.now() - safeSince.getTime()) / 3600000;
-                     return (
-                       <>
-                         <div className="text-2xl font-bold text-green-700">
-                           {hoursAgo < 1
-                             ? `${Math.round(hoursAgo * 60)}m ago`
-                             : hoursAgo < 24
-                               ? `${hoursAgo.toFixed(1)}h ago`
-                               : `${(hoursAgo / 24).toFixed(1)}d ago`}
-                         </div>
-                         <div className="text-xs text-gray-500 mt-1">
-                           {format(safeSince, 'EEE MMM d, h:mm a')}
-                         </div>
-                       </>
-                     );
-                   })()}
+                   <div className="text-sm text-gray-600">Earliest safe in</div>
+                   <div className="text-2xl font-bold text-amber-700">{algo?.rain_delay_hours?.toFixed(0)}h</div>
+                   <div className="text-xs text-gray-500 mt-1">Optimal: {algo?.optimal_delay_hours?.toFixed(0)}h</div>
                  </>
                )}
-              {algo?.is_safe_to_mow && !details?.last_significant_rain && (
-                <div className="text-sm text-green-600">Soil moisture OK</div>
-              )}
-            </div>
-          </div>
+               {algo?.is_safe_to_mow && algo?.safe_to_mow_time && (
+                  <>
+                    <div className="text-sm text-gray-600">Safe to mow since</div>
+                    {(() => {
+                      const safeSince = new Date(algo.safe_to_mow_time);
+                      const hoursAgo = (Date.now() - safeSince.getTime()) / 3600000;
+                      return (
+                        <>
+                          <div className="text-2xl font-bold text-green-700">
+                            {hoursAgo < 1
+                              ? `${Math.round(hoursAgo * 60)}m ago`
+                              : hoursAgo < 24
+                                ? `${hoursAgo.toFixed(1)}h ago`
+                                : `${(hoursAgo / 24).toFixed(1)}d ago`}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {format(safeSince, 'EEE MMM d, h:mm a')}
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </>
+                )}
+               {algo?.is_safe_to_mow && !details?.last_significant_rain && (
+                 <div className="text-sm text-green-600">Soil moisture OK</div>
+               )}
+             </div>
+           </div>
 
-          {/* Soil moisture bar */}
-          <div className="mt-3">
-            <div className="flex justify-between text-xs text-gray-500 mb-1">
-              <span>Estimated soil moisture: {algo?.estimated_soil_moisture_pct?.toFixed(0)}%</span>
-              <span>Field capacity: {algo?.field_capacity_pct}%</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div
-                className={`h-2 rounded-full ${algo?.estimated_soil_moisture_pct && algo.estimated_soil_moisture_pct > algo?.field_capacity_pct ? 'bg-red-500' : 'bg-green-500'}`}
-                style={{ width: `${Math.min(100, (algo?.estimated_soil_moisture_pct || 0))}%` }}
-              />
-            </div>
-          </div>
-        </div>
+           {/* Soil moisture bar with safe/optimal/FC markers */}
+           <div className="mt-3">
+             <div className="flex justify-between text-xs text-gray-500 mb-1">
+               <span>Current: {algo?.estimated_soil_moisture_pct?.toFixed(0)}%</span>
+               <span>Field capacity: {algo?.field_capacity_pct}%</span>
+             </div>
+             <div className="relative w-full bg-gray-200 rounded-full h-3">
+               {/* Safe threshold marker (for robot mowers, above FC) */}
+               {details?.safe_moisture_threshold != null && details.safe_moisture_threshold > 0 && (
+                 <div
+                   className="absolute top-0 bottom-0 w-0.5 bg-green-500 z-10"
+                   style={{ left: `${Math.min(100, details.safe_moisture_threshold)}%` }}
+                   title={`Safe threshold: ${details.safe_moisture_threshold.toFixed(0)}%`}
+                 />
+               )}
+               {/* Optimal threshold marker */}
+               {details?.optimal_moisture_threshold != null && details.optimal_moisture_threshold > 0 && (
+                 <div
+                   className="absolute top-0 bottom-0 w-0.5 bg-blue-500 z-10"
+                   style={{ left: `${Math.min(100, details.optimal_moisture_threshold)}%` }}
+                   title={`Optimal threshold: ${details.optimal_moisture_threshold.toFixed(0)}%`}
+                 />
+               )}
+               {/* Current moisture fill */}
+               <div
+                 className={`h-3 rounded-full ${algo?.estimated_soil_moisture_pct && algo.estimated_soil_moisture_pct > (details?.safe_moisture_threshold ?? algo?.field_capacity_pct ?? 0) ? 'bg-red-500' : 'bg-green-500'}`}
+                 style={{ width: `${Math.min(100, (algo?.estimated_soil_moisture_pct || 0))}%` }}
+               />
+             </div>
+             {/* Threshold legend */}
+             <div className="flex gap-4 mt-1 text-[10px] text-gray-500">
+               <span className="flex items-center gap-1"><span className="w-2 h-2 bg-blue-500 inline-block rounded-full"></span>Optimal: {details?.optimal_moisture_threshold?.toFixed(0)}%</span>
+               <span className="flex items-center gap-1"><span className="w-2 h-2 bg-green-500 inline-block rounded-full"></span>Safe: {details?.safe_moisture_threshold?.toFixed(0)}%</span>
+               <span className="flex items-center gap-1"><span className="w-2 h-2 bg-gray-400 inline-block rounded-full"></span>FC: {algo?.field_capacity_pct}%</span>
+             </div>
+           </div>
+         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Calculation breakdown */}
-          <div>
-            <h3 className="font-medium text-gray-700 mb-2">Calculation Breakdown</h3>
-            <dl className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <dt className="text-gray-500">Last significant rain:</dt>
-                <dd className="font-medium text-right">
-                  {details?.last_significant_rain
-                    ? `${hoursAgo(details.last_significant_rain)} (${formatTimestamp(details.last_significant_rain)})`
-                    : 'None detected'}
-                </dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-gray-500">Rainfall amount:</dt>
-                <dd className="font-medium">{formatLength(details?.last_rain_mm ?? 0, units)}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-gray-500">Rain intensity:</dt>
-                <dd className={`font-medium capitalize ${intensityColor(details?.rain_intensity || 'none')}`}>
-                  {details?.rain_intensity || 'none'}
-                </dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-gray-500">Base delay:</dt>
-                <dd className="font-medium">{details?.base_delay_hours ?? 0}h</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-gray-500">Soil factor ({rainModel.soilType}):</dt>
-                <dd className="font-medium">{details?.soil_factor ?? 1}x</dd>
-              </div>
-              <div className="border-t pt-2 mt-2">
-                <div className="flex justify-between">
-                  <dt className="text-gray-500">Weather factor:</dt>
-                  <dd className="font-medium">{details?.weather_factor ?? 1}</dd>
-                </div>
-                <div className="flex justify-between text-xs text-gray-400">
-                  <dt>Sun reduction: -{(details?.sun_drying_reduction ?? 0).toFixed(3)}</dt>
-                  <dt>Temp reduction: -{(details?.temp_drying_reduction ?? 0).toFixed(3)}</dt>
-                </div>
-              </div>
-            </dl>
-          </div>
+         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+           {/* Calculation breakdown */}
+           <div>
+             <h3 className="font-medium text-gray-700 mb-2">Calculation Breakdown</h3>
+             <dl className="space-y-2 text-sm">
+               <div className="flex justify-between">
+                 <dt className="text-gray-500">Last significant rain:</dt>
+                 <dd className="font-medium text-right">
+                   {details?.last_significant_rain
+                     ? `${hoursAgo(details.last_significant_rain)} (${formatTimestamp(details.last_significant_rain)})`
+                     : 'None detected'}
+                 </dd>
+               </div>
+               <div className="flex justify-between">
+                 <dt className="text-gray-500">Rainfall amount:</dt>
+                 <dd className="font-medium">{formatLength(details?.last_rain_mm ?? 0, units)}</dd>
+               </div>
+               <div className="flex justify-between">
+                 <dt className="text-gray-500">Rain intensity:</dt>
+                 <dd className={`font-medium capitalize ${intensityColor(details?.rain_intensity || 'none')}`}>
+                   {details?.rain_intensity || 'none'}
+                 </dd>
+               </div>
+               <div className="flex justify-between">
+                 <dt className="text-gray-500">Hours since rain:</dt>
+                 <dd className="font-medium">{details?.hours_since_rain?.toFixed(1)}h</dd>
+               </div>
+               <div className="border-t pt-2 mt-2">
+                 <h4 className="text-xs font-medium text-gray-600 mb-1">Model Output</h4>
+                 <div className="flex justify-between">
+                   <dt className="text-gray-500">Time to safe (model):</dt>
+                   <dd className="font-medium">{details?.time_to_safe_hours?.toFixed(1)}h</dd>
+                 </div>
+                 <div className="flex justify-between">
+                   <dt className="text-gray-500">Time to optimal (model):</dt>
+                   <dd className="font-medium">{details?.time_to_optimal_hours?.toFixed(1)}h</dd>
+                 </div>
+                 <div className="flex justify-between">
+                   <dt className="text-gray-500">Min delay floor:</dt>
+                   <dd className="font-medium">{details?.min_delay_floor_hours}h</dd>
+                 </div>
+                 <div className="flex justify-between">
+                   <dt className="text-gray-500">Max delay ceiling:</dt>
+                   <dd className="font-medium">{details?.max_delay_ceil_hours}h</dd>
+                 </div>
+                 <div className="flex justify-between">
+                   <dt className="text-gray-500">Initial moisture:</dt>
+                   <dd className="font-medium">{details?.initial_soil_moisture_pct?.toFixed(1)}%</dd>
+                 </div>
+               </div>
+               <div className="border-t pt-2 mt-2">
+                 <div className="flex justify-between items-start">
+                   <dt className="text-gray-500">Drying time constant (tau)</dt>
+                   <dd className="font-medium">{details?.drying_time_constant}h</dd>
+                 </div>
+                 <p className="text-xs text-gray-400 mt-0.5">Base soil drying rate (sand:24h, loam:72h, clay:168h)</p>
+                 <div className="flex justify-between items-start mt-1">
+                   <dt className="text-gray-500">Effective tau</dt>
+                   <dd className="font-medium">{details?.effective_tau?.toFixed(1)}h</dd>
+                 </div>
+                 <p className="text-xs text-gray-400 mt-0.5">Actual drying rate = base tau adjusted by sun &amp; temperature modifiers. When both modifiers are 0 (no sun/warmth since last rain), effective tau equals base tau. Lower values mean faster drying.</p>
+                 <div className="flex justify-between">
+                   <dt className="text-gray-500">Sun drying effect:</dt>
+                   <dd className="font-medium">{(details?.sun_drying_modifier ?? 0).toFixed(3)}</dd>
+                 </div>
+                 <div className="flex justify-between">
+                   <dt className="text-gray-500">Temp drying effect:</dt>
+                   <dd className="font-medium">{(details?.temp_drying_modifier ?? 0).toFixed(3)}</dd>
+                 </div>
+               </div>
+             </dl>
+           </div>
 
-          {/* Model Parameters */}
-          <div>
-            <h3 className="font-medium text-gray-700 mb-2">Model Parameters</h3>
-            <dl className="space-y-2 text-sm">
-              <div className="flex justify-between"><dt className="text-gray-500">Min delay:</dt><dd className="font-medium">{rainModel.minDelayAfterRain}h</dd></div>
-              <div className="flex justify-between"><dt className="text-gray-500">Heavy rain delay:</dt><dd className="font-medium">{rainModel.heavyRainDelay}h</dd></div>
-              <div className="flex justify-between"><dt className="text-gray-500">Sun drying:</dt><dd className="font-medium">{rainModel.sunDryingRate}/h</dd></div>
-              <div className="flex justify-between"><dt className="text-gray-500">Temp factor:</dt><dd className="font-medium">{rainModel.tempDryingFactor}</dd></div>
-              <div className="flex justify-between"><dt className="text-gray-500">Soil type:</dt><dd className="font-medium capitalize">{rainModel.soilType}</dd></div>
+           {/* Model Parameters */}
+           <div>
+             <h3 className="font-medium text-gray-700 mb-2">Model Parameters</h3>
+             <dl className="space-y-2 text-sm">
+               <div className="flex justify-between">
+                 <dt className="text-gray-500">Mower weight:</dt>
+                 <dd className="font-medium">{rainModel.mowerWeightLbs ?? 65} lbs</dd>
+               </div>
+               <div className="flex justify-between">
+                 <dt className="text-gray-500">Soil type:</dt>
+                 <dd className="font-medium capitalize">{rainModel.soilType}</dd>
+               </div>
+               <div className="flex justify-between">
+                 <dt className="text-gray-500">Compaction threshold:</dt>
+                 <dd className="font-medium">{((details?.compaction_threshold ?? 1.05) * 100).toFixed(0)}% of FC</dd>
+               </div>
+               <div className="flex justify-between">
+                 <dt className="text-gray-500">Surface dry factor:</dt>
+                 <dd className="font-medium">{((details?.surface_dry_factor ?? 0.3) * 100).toFixed(0)}%</dd>
+               </div>
+               <div className="flex justify-between">
+                 <dt className="text-gray-500">Safe threshold:</dt>
+                 <dd className="font-medium">{details?.safe_moisture_threshold?.toFixed(0)}%</dd>
+               </div>
+               <div className="flex justify-between">
+                 <dt className="text-gray-500">Optimal threshold:</dt>
+                 <dd className="font-medium">{details?.optimal_moisture_threshold?.toFixed(0)}%</dd>
+               </div>
+               <div className="flex justify-between">
+                 <dt className="text-gray-500">Min delay (floor):</dt>
+                 <dd className="font-medium">{rainModel.minDelayAfterRain}h</dd>
+               </div>
+               <div className="flex justify-between">
+                 <dt className="text-gray-500">Max delay (ceiling):</dt>
+                 <dd className="font-medium">{rainModel.heavyRainDelay}h</dd>
+               </div>
+               <div className="flex justify-between">
+                 <dt className="text-gray-500">Sun drying:</dt>
+                 <dd className="font-medium">{rainModel.sunDryingRate}/h</dd>
+               </div>
+               <div className="flex justify-between">
+                 <dt className="text-gray-500">Temp factor:</dt>
+                 <dd className="font-medium">{rainModel.tempDryingFactor}</dd>
+               </div>
 
-              {/* How the formula works */}
-              <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                <h4 className="text-xs font-medium text-gray-600 mb-2">Formula</h4>
-                <p className="text-xs text-gray-500">
-                  delay = base_delay x soil_factor x weather_factor
-                </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  weather_factor = max(0.3, 1 - sun_reduction - temp_reduction)
-                </p>
-              </div>
+               {/* How the formula works */}
+               <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                 <h4 className="text-xs font-medium text-gray-600 mb-2">Formula (Exponential Decay + Robot Mower Model)</h4>
+                 <p className="text-xs text-gray-500 font-mono">
+                   SWC(t) = &theta;_res + (SWC<sub>0</sub> - &theta;_res) &times; e<sup>-t/&tau;</sup>
+                 </p>
+                 <p className="text-xs text-gray-500 mt-1">
+                   t_safe = -&tau; &times; ln((C&times;FC - &theta;_res) / (SWC<sub>0</sub> - &theta;_res))
+                 </p>
+                 <p className="text-xs text-gray-500 mt-1">
+                   C = compaction threshold (1.05 for robot, 1.0 for conventional)
+                 </p>
+                 <p className="text-xs text-gray-500 mt-1">
+                   t_optimal = -&tau; &times; ln(((1-SD)&times;FC - &theta;_res) / (SWC<sub>0</sub> - &theta;_res))
+                 </p>
+                 <p className="text-xs text-gray-500 mt-1">
+                   SD = surface dry factor (0.3 default = 30% extra drying for cut quality)
+                 </p>
+                 <p className="text-xs text-gray-500 mt-1">
+                   effective &tau; = &tau; &times; max(0.5, 1 - (sun + temp) &times; 0.2)
+                 </p>
+               </div>
 
-              {/* Expected safe time */}
-              {!algo?.is_safe_to_mow && algo?.safe_to_mow_time && (
-                <div className="mt-3 p-3 bg-amber-50 rounded-lg">
-                  <h4 className="text-xs font-medium text-amber-800 mb-1">Earliest safe to mow</h4>
-                  <p className="text-sm font-bold text-amber-900">
-                    {format(new Date(algo.safe_to_mow_time), 'EEE MMM d, h:mm a')}
-                  </p>
-                  <p className="text-xs text-amber-700 mt-1">
-                    (Optimal: {format(new Date(new Date(algo.safe_to_mow_time).getTime() + (algo?.optimal_delay_hours - algo?.rain_delay_hours || 0) * 3600000), 'EEE MMM d, h:mm a')})
-                  </p>
-                </div>
-              )}
-            </dl>
-          </div>
-        </div>
-      </div>
+               {/* Expected safe time */}
+               {!algo?.is_safe_to_mow && algo?.safe_to_mow_time && (
+                 <div className="mt-3 p-3 bg-amber-50 rounded-lg">
+                   <h4 className="text-xs font-medium text-amber-800 mb-1">Earliest safe to mow</h4>
+                   <p className="text-sm font-bold text-amber-900">
+                     {format(new Date(algo.safe_to_mow_time), 'EEE MMM d, h:mm a')}
+                   </p>
+                   <p className="text-xs text-amber-700 mt-1">
+                     (Optimal: {format(new Date(new Date(algo.safe_to_mow_time).getTime() + (algo?.optimal_delay_hours - algo?.rain_delay_hours || 0) * 3600000), 'EEE MMM d, h:mm a')})
+                   </p>
+                 </div>
+               )}
+             </dl>
+           </div>
+         </div>
+       </div>
 
       {/* Weather History - compact grid */}
       <div className="card">

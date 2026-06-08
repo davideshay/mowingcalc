@@ -19,14 +19,17 @@ export const DEFAULT_CONFIG: AppConfig = {
     sunGrowthBoost: 0.15,  // 15% boost with adequate sun
   },
 
-  // Rain delay settings
+  // Rain delay settings (robot mower optimized)
   rainDelayModel: {
-    minDelayAfterRain: 24,       // hours - configurable minimum
-    heavyRainDelay: 48,          // hours after heavy rain
-    sunDryingRate: 0.1,          // reduction factor per hour of sun
-    tempDryingFactor: 0.05,      // reduction per degree above 15C
-    soilType: 'loam',            // soil type for drying calculations
-    significantRainThreshold: 0.25, // mm - minimum hourly rain to count as significant
+    minDelayAfterRain: 4,           // hours - absolute minimum delay after ANY rain (surface drying)
+    heavyRainDelay: 48,             // hours - absolute maximum delay even after drenching rain
+    sunDryingRate: 0.1,             // reduction factor per hour of sun
+    tempDryingFactor: 0.05,         // reduction per degree above 15C
+    soilType: 'loam',               // soil type for drying calculations
+    significantRainThreshold: 0.1, // inches - minimum total accumulated rain to count as significant
+    mowerWeightLbs: 65,             // 60-70 lb robot mower class
+    compactionThreshold: 1.05,      // safe to mow at 105% of FC (low compaction risk)
+    surfaceDryFactor: 0.3,          // 30% more drying for optimal cut quality
   },
 
   // Time constraints

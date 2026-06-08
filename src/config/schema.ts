@@ -26,8 +26,16 @@ const GrowthModelSchema = z.object({
 });
 
 // Rain delay model parameters
+// Research-backed thresholds for 60-70 lb robot mowers (RAIN_DELAY_MODEL_RESEARCH.md)
 const RainDelayModelSchema = z.object({
-  minDelayAfterRain: z.number().positive().default(24),
+  // Absolute bounds on the rain delay calculation (applied after the model runs)
+  // minDelayAfterRain: minimum hours to wait after ANY significant rain.
+  //   Even a light sprinkle needs time for surface moisture to dry off the
+  //   grass blades. Independent of soil moisture model output.
+  minDelayAfterRain: z.number().positive().default(4),
+  // heavyRainDelay: maximum hours the model will ever delay.
+  //   Even after a drenching downpour, we cap the delay so the mower
+  //   doesn't sit idle indefinitely.
   heavyRainDelay: z.number().positive().default(48),
   sunDryingRate: z.number().min(0).max(1).default(0.1),
   tempDryingFactor: z.number().min(0).default(0.05),
@@ -35,7 +43,23 @@ const RainDelayModelSchema = z.object({
   // Minimum hourly rainfall (mm) that counts as "significant rain"
   // WeatherFlow sensors at 0.01 in/hr = ~0.25 mm/hr, so default is 0.25mm
   // to avoid triggering on sensor noise while catching real light rain
-  significantRainThreshold: z.number().positive().default(0.25),
+  significantRainThreshold: z.number().positive().default(0.1),
+
+  // NEW: mower-specific parameters (RAIN_DELAY_MODEL_RESEARCH.md Section 6)
+  // Mower weight in lbs - drives compaction threshold automatically
+  // Below 100 lbs = robot mower thresholds; above 200 lbs = conventional mower thresholds
+  mowerWeightLbs: z.number().positive().default(65),
+
+  // Compaction threshold as fraction of field capacity
+  // 1.05 = safe to mow at 105% of FC (robot mower - low compaction risk)
+  // 1.0  = safe to mow at exactly FC (conventional mower)
+  // Auto-computed from mowerWeightLbs unless explicitly overridden
+  compactionThreshold: z.number().min(0.5).max(1.2).default(1.05),
+
+  // Surface dry factor: additional drying time fraction for cutting quality
+  // 0.3 = optimal mow requires 30% more drying beyond compaction-safe threshold
+  // Accounts for grass surface moisture vs deep soil moisture
+  surfaceDryFactor: z.number().min(0).max(1).default(0.3),
 });
 
 // Entity groups - maps metric types to arrays of HA entity IDs

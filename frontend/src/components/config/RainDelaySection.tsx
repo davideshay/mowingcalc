@@ -48,27 +48,58 @@ export function RainDelaySection({ soilType, rainDelayModel, onChange }: Props) 
         </div>
       </div>
 
+      {/* Mower Settings (NEW) */}
+      <div>
+        <h3 className="text-lg font-semibold mb-4">Mower Settings</h3>
+        <p className="text-sm text-gray-500 mb-4">
+          Mower weight affects the compaction threshold. Robot mowers (60-70 lbs) can safely
+          mow on wetter soil than conventional riding mowers (300+ lbs).
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <NumberInput
+            label="Mower weight (lbs)"
+            value={rainDelayModel?.mowerWeightLbs ?? 65}
+            onChange={(v) => onChange({ mowerWeightLbs: v })}
+            hint="60-70 for robot mowers, 200+ for riding mowers"
+          />
+          <NumberInput
+            label="Compaction threshold (% of FC)"
+            value={(rainDelayModel?.compactionThreshold ?? 1.05) * 100}
+            onChange={(v) => onChange({ compactionThreshold: v / 100 })}
+            hint="105% for robot mowers, 100% for conventional"
+            step="1"
+          />
+          <NumberInput
+            label="Surface dry factor (%)"
+            value={(rainDelayModel?.surfaceDryFactor ?? 0.3) * 100}
+            onChange={(v) => onChange({ surfaceDryFactor: v / 100 })}
+            hint="Extra drying beyond safe threshold for optimal cut quality"
+            step="5"
+          />
+        </div>
+      </div>
+
       {/* Rain Delay Settings */}
       <div>
         <h3 className="text-lg font-semibold mb-4">Rain Delay Settings</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <NumberInput
-            label="Significant rain threshold (mm/hour)"
+            label="Significant rain threshold (inches)"
             value={rainDelayModel?.significantRainThreshold}
             onChange={(v) => onChange({ significantRainThreshold: v })}
-            hint="Minimum hourly rainfall to trigger rain delay. Default 0.25mm catches even light rain."
+            hint="Minimum total accumulated rain to trigger delay. Default 0.1in (~2.5mm)."
           />
           <NumberInput
-            label="Minimum delay after rain (hours)"
+            label="Minimum delay after any rain (hours)"
             value={rainDelayModel?.minDelayAfterRain}
             onChange={(v) => onChange({ minDelayAfterRain: v })}
-            hint="How long to wait after light rain"
+            hint="Absolute floor: even light rain waits this long for surface blades to dry."
           />
           <NumberInput
-            label="Heavy rain delay (hours)"
+            label="Maximum rain delay (hours)"
             value={rainDelayModel?.heavyRainDelay}
             onChange={(v) => onChange({ heavyRainDelay: v })}
-            hint="How long to wait after heavy rain"
+            hint="Absolute ceiling: model output never exceeds this regardless of how hard it rained."
           />
         </div>
       </div>
@@ -98,7 +129,7 @@ export function RainDelaySection({ soilType, rainDelayModel, onChange }: Props) 
                 onClick={() => setAdvanced(false)}
                 className="text-sm text-gray-500 hover:text-gray-700"
               >
-                ✕ Close
+                X Close
               </button>
             </div>
           </div>
@@ -125,14 +156,26 @@ export function RainDelaySection({ soilType, rainDelayModel, onChange }: Props) 
           onClick={() => setAdvanced(true)}
           className="text-sm text-primary-600 hover:text-primary-700 font-medium"
         >
-          Show advanced drying factors →
+          Show advanced drying factors &rarr;
         </button>
       )}
     </div>
   );
 }
 
-function NumberInput({ label, value, onChange, hint }: { label: string; value: number; onChange: (v: number) => void; hint?: string }) {
+function NumberInput({
+  label,
+  value,
+  onChange,
+  hint,
+  step = 'any',
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+  hint?: string;
+  step?: string;
+}) {
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
@@ -141,7 +184,7 @@ function NumberInput({ label, value, onChange, hint }: { label: string; value: n
         className="input"
         value={parseFloat(value.toFixed(2))}
         onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-        step="any"
+        step={step}
       />
       {hint && <p className="text-xs text-gray-500 mt-1">{hint}</p>}
     </div>

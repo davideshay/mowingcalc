@@ -1,4 +1,5 @@
 // Soil type presets with recommended drying factors
+// Values optimized for 60-70 lb robot mowers (RAIN_DELAY_MODEL_RESEARCH.md)
 export interface SoilPreset {
   id: string;
   name: string;
@@ -16,8 +17,8 @@ export const SOIL_PRESETS: SoilPreset[] = [
     description: 'Drains quickly, dries fast',
     sunDryingRate: 0.2,
     tempDryingFactor: 0.08,
-    minDelayAfterRain: 12,
-    heavyRainDelay: 24,
+    minDelayAfterRain: 4,  // Surface blade drying time (independent of soil)
+    heavyRainDelay: 48,    // Absolute max delay ceiling
   },
   {
     id: 'loam',
@@ -25,8 +26,8 @@ export const SOIL_PRESETS: SoilPreset[] = [
     description: 'Balanced drainage and moisture retention',
     sunDryingRate: 0.1,
     tempDryingFactor: 0.05,
-    minDelayAfterRain: 24,
-    heavyRainDelay: 48,
+    minDelayAfterRain: 4,  // Surface blade drying time (independent of soil)
+    heavyRainDelay: 48,    // Absolute max delay ceiling
   },
   {
     id: 'clay',
@@ -34,8 +35,8 @@ export const SOIL_PRESETS: SoilPreset[] = [
     description: 'Drains slowly, stays wet longer',
     sunDryingRate: 0.05,
     tempDryingFactor: 0.03,
-    minDelayAfterRain: 36,
-    heavyRainDelay: 72,
+    minDelayAfterRain: 4,  // Surface blade drying time (independent of soil)
+    heavyRainDelay: 48,    // Absolute max delay ceiling
   },
 ];
 

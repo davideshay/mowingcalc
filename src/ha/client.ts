@@ -372,25 +372,33 @@ export class HAClient {
     return [];
   }
 
-   // Build aggregated result from timestamp buckets (median per bucket)
+  // Build aggregated result from timestamp buckets
+  // For rainfall: use max across sensors (sparse sensors - any sensor detecting rain matters)
+  // For other metrics: use median (robust to outliers)
   private buildAggregatedResult(
     timestampBuckets: Map<number, number[]>,
     metric: string = 'temperature',
   ): AggregatedWeatherData[] {
     const result: AggregatedWeatherData[] = [];
+    const useMax = metric === 'rainfall';
 
     timestampBuckets.forEach((values, timestamp) => {
-      const median = HAClient.median(values);
-      if (median !== null) {
+      // For rainfall: max across sensors (at least one station detecting rain = rain happened)
+      // For temperature/sunshine: median (robust to individual sensor outliers)
+      const aggregated = useMax
+        ? Math.max(...values.filter((v) => v > 0))
+        : HAClient.median(values);
+
+      if (aggregated !== null && aggregated > 0) {
         if (metric === 'rainfall') {
           result.push({
             timestamp: new Date(timestamp).toISOString(),
-            rainfall_mm: median,
+            rainfall_mm: aggregated,
           });
         } else {
           result.push({
             timestamp: new Date(timestamp).toISOString(),
-            temperature_c: median,
+            temperature_c: aggregated as number,
           });
         }
       }
