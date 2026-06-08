@@ -71,7 +71,7 @@ export class ConfigLoader {
 
     if (Array.isArray(obj)) {
       obj.forEach((item, i) => {
-        Object.assign(result, this.flatten(item, `${prefix}[${i}]`));
+        Object.assign(result, this.flatten(item, `${prefix}.${i}`));
       });
       return obj.length > 0 ? result : { [prefix]: obj };
     }
@@ -90,22 +90,43 @@ export class ConfigLoader {
   private unflatten(flat: Record<string, unknown>): Record<string, unknown> {
     const result: Record<string, unknown> = {};
 
-    for (const key of Object.keys(flat)) {
-      const parts = key.match(/[^\[\]]+/g) || [];
+    for (const [key, value] of Object.entries(flat)) {
+      const parts = key.split('.');
       let current = result;
 
       for (let i = 0; i < parts.length - 1; i++) {
         const part = parts[i];
+        const next = parts[i + 1];
+        const isNextIndex = /^\d+$/.test(next);
+
         if (!(part in current)) {
-          // Check if next part is an array index
-          const next = parts[i + 1];
-          current[part] = /^\d+$/.test(next) ? [] : {};
+          current[part] = isNextIndex ? [] : {};
         }
+
+        // If current[part] is a primitive but next part is an index, convert to array
+        if (typeof current[part] === 'number' || typeof current[part] === 'string') {
+          current[part] = [];
+        }
+
         current = current[part] as Record<string, unknown>;
+
+        // If current is an array and part is an index, navigate into it
+        if (Array.isArray(current) && /^\d+$/.test(part)) {
+          const idx = parseInt(part, 10);
+          while (current.length <= idx) {
+            current.push(isNextIndex ? [] : {});
+          }
+          current = current[idx] as Record<string, unknown>;
+        }
       }
 
       const last = parts[parts.length - 1];
-      current[last] = flat[key];
+      if (Array.isArray(current) && /^\d+$/.test(last)) {
+        const idx = parseInt(last, 10);
+        current[idx] = value;
+      } else {
+        current[last] = value;
+      }
     }
 
     return result;

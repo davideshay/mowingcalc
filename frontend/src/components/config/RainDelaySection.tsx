@@ -53,6 +53,12 @@ export function RainDelaySection({ soilType, rainDelayModel, onChange }: Props) 
         <h3 className="text-lg font-semibold mb-4">Rain Delay Settings</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <NumberInput
+            label="Significant rain threshold (mm/hour)"
+            value={rainDelayModel?.significantRainThreshold}
+            onChange={(v) => onChange({ significantRainThreshold: v })}
+            hint="Minimum hourly rainfall to trigger rain delay. Default 0.25mm catches even light rain."
+          />
+          <NumberInput
             label="Minimum delay after rain (hours)"
             value={rainDelayModel?.minDelayAfterRain}
             onChange={(v) => onChange({ minDelayAfterRain: v })}

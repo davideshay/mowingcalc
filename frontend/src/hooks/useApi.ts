@@ -106,6 +106,47 @@ export function useGrowthHistory() {
   return useApi<import('../types/api').GrowthHistoryPoint[]>('/growth-history');
 }
 
+export function useForecast() {
+  return useApi<{ hourly: Array<{ datetime: string; condition: string; temperature: number; precipitation_probability: number; is_daytime?: boolean }>; daily: Array<{ datetime: string; condition: string; temperature: number; templow?: number; precipitation_probability: number; is_daytime?: boolean }> }>('/debug/forecast');
+}
+
+export function useWeatherHistory() {
+  return useApi<{
+    period_hours: number;
+    total_rainfall_mm: number;
+    avg_temperature_c: number;
+    total_sunshine_hours: number;
+    last_rain_timestamp: string | null;
+    last_rain_mm: number;
+    hourly: Array<{ timestamp: string; rainfall_mm: number; temperature_c: number; sunshine_hours: number }>;
+  }>('/debug/weather-history');
+}
+
+export function useValidateHA() {
+  const [results, setResults] = useState<Array<{ entity_id: string; label: string; status: 'ok' | 'unavailable' | 'not_found' | 'error'; state?: string; message?: string }>>([]);
+  const [haConnected, setHaConnected] = useState<boolean | null>(null);
+  const [validating, setValidating] = useState(false);
+
+  const validate = useCallback(async () => {
+    setValidating(true);
+    try {
+      const response = await fetch('/api/validate-ha', {
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await response.json();
+      setHaConnected(data.ha_connected);
+      setResults(data.results || []);
+    } catch (err) {
+      setHaConnected(false);
+      setResults([]);
+    } finally {
+      setValidating(false);
+    }
+  }, []);
+
+  return { results, haConnected, validating, validate };
+}
+
 // Config update hook
 export function useConfigUpdate() {
   const [saving, setSaving] = useState(false);

@@ -27,7 +27,7 @@ RUN npm ci --omit=dev
 COPY --from=backend-builder /app/dist ./dist
 
 # Copy built frontend
-COPY --from=frontend-builder /app/frontend/dist ./frontend-dist
+COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
 # Create data directory for SQLite
 RUN mkdir -p /data

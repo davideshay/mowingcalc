@@ -2,23 +2,23 @@ import { AppConfig } from '../config/schema';
 import { HourlyWeather } from '../weather/service';
 
 /**
- * Rain Delay Model (Algorithm 2)
+ * Rain Delay Model (Algorithm 2) - Research-Backed
  *
- * Research-backed calculation of how long to wait after rain before mowing.
- *
- * Key findings:
- * - Light rain (drizzle): 4-6 hours
- * - Moderate rain: 24 hours
- * - Heavy rain: 24-48 hours minimum
- * - Heavy rain + cloudy: 3-5 days
- * - Sandy soil: drains to field capacity within 24 hours
- * - Loam soil: 1-2 days
- * - Clay soil: 2-3+ days
+ * Key research findings:
+ * - Field capacity: sand 15-25%, loam 35-45%, clay 45-55% (Cornell Extension)
+ * - Drainage time: sand ~hours, loam 1-3 days, clay 2-3 days
+ * - Robot mowers: 30-60 lbs, low compaction risk (<1000 kPa at 5cm depth)
+ * - Soil compaction threshold: >1035 kPa restricts roots, safe <200 PSI
+ * - Light rain (<2.5mm): 4-6h delay
+ * - Moderate rain (2.5-7.5mm): 24h delay
+ * - Heavy rain (>7.5mm): 48h delay
+ * - Soil moisture decay follows exponential: SWC = A * e^(-t/τ) + θ_res
+ * - Drying time constant τ: sand ~24h, loam ~72h, clay ~168h
  *
  * Formula: delay_hours = base_delay * soil_factor * weather_factor
- *   base_delay: 24h moderate, 48h heavy
+ *   base_delay: 12h light, 24h moderate, 48h heavy
  *   soil_factor: 0.5 (sand), 1.0 (loam), 1.5 (clay)
- *   weather_factor: 0.5 (sunny/warm), 1.0 (cloudy), 1.5 (cool/cloudy)
+ *   weather_factor: 0.3-1.0 based on sun/temp drying
  */
 
 export interface RainDelayResult {
@@ -32,6 +32,8 @@ export interface RainDelayResult {
   estimated_soil_moisture_pct: number;
   // Field capacity for configured soil type
   field_capacity_pct: number;
+  // Fixed timestamp: when soil becomes safe to mow (rain + effective delay)
+  safe_to_mow_time: string | null;
   // Details about the calculation
   details: {
     last_significant_rain: string | null;
@@ -99,12 +101,16 @@ export class RainDelayModel {
     const soilMoisture = this.estimateSoilMoisture(lastRain, hoursSinceRain, sunFactor, tempFactor);
     const fieldCapacity = this.fieldCapacity();
 
+    // Compute safe-to-mow timestamp (rain_time + effective_delay)
+    const safeToMowTime = new Date(lastRain.timestamp.getTime() + effectiveDelay * 3600000);
+
     return {
       earliest_delay_hours: Math.round(effectiveDelay * 10) / 10,
       optimal_delay_hours: Math.round(optimalDelay * 10) / 10,
       is_safe_to_mow: isSafe,
       estimated_soil_moisture_pct: Math.round(soilMoisture * 10) / 10,
       field_capacity_pct: fieldCapacity,
+      safe_to_mow_time: safeToMowTime.toISOString(),
       details: {
         last_significant_rain: lastRain.timestamp.toISOString(),
         last_rain_mm: Math.round(lastRain.total_mm * 100) / 100,
@@ -119,17 +125,19 @@ export class RainDelayModel {
   }
 
   /**
-   * Find the last significant rain event (>0.5mm total).
+   * Find the last significant rain event (uses configurable threshold).
    */
   private findLastSignificantRain(
     hourlyWeather: HourlyWeather[],
   ): { timestamp: Date; total_mm: number } | null {
+    const threshold = this.config.rainDelayModel.significantRainThreshold;
+
     // Group consecutive hours with rain
     const reversed = [...hourlyWeather].reverse();
     let rainStartIdx = -1;
 
     for (let i = 0; i < reversed.length; i++) {
-      if (reversed[i].rainfall_mm > 0.5) {
+      if (reversed[i].rainfall_mm > threshold) {
         rainStartIdx = i;
         break;
       }
@@ -137,21 +145,27 @@ export class RainDelayModel {
 
     if (rainStartIdx === -1) return null;
 
-    // Sum consecutive rain hours
+    // Sum consecutive rain hours INCLUDING the significant one (i <= rainStartIdx)
+    // Track the timestamp of the most recent rain hour (reversed[0] is newest)
     let totalMm = 0;
-    let lastTimestamp = reversed[0].timestamp;
-    for (let i = 0; i < rainStartIdx && i < 48; i++) {
+    let lastTimestamp = reversed[rainStartIdx].timestamp;
+    for (let i = 0; i <= rainStartIdx && i < 48; i++) {
       if (reversed[i].rainfall_mm > 0) {
         totalMm += reversed[i].rainfall_mm;
+        // reversed[0] is most recent, so earlier indices = newer timestamps
         if (reversed[i].timestamp > lastTimestamp) {
           lastTimestamp = reversed[i].timestamp;
         }
       }
     }
 
-    if (totalMm < 0.5) return null;
+    if (totalMm < threshold) return null;
 
-    return { timestamp: lastTimestamp, total_mm: totalMm };
+    // Round timestamp to the top of the hour to avoid drift from bucket alignment
+    const rounded = new Date(lastTimestamp);
+    rounded.setUTCMinutes(0, 0, 0);
+
+    return { timestamp: rounded, total_mm: totalMm };
   }
 
   /**
@@ -165,13 +179,16 @@ export class RainDelayModel {
 
   /**
    * Base delay in hours for rain intensity.
+   * Research: light rain 4-6h, moderate 24h, heavy 48h
+   * Scaled by soil type drainage characteristics.
    */
   private baseDelayForIntensity(intensity: string): number {
     const { rainDelayModel } = this.config;
+    const soilFactor = this.soilFactor();
     switch (intensity) {
-      case 'light': return Math.max(6, rainDelayModel.minDelayAfterRain / 4);
-      case 'moderate': return rainDelayModel.minDelayAfterRain;
-      case 'heavy': return rainDelayModel.heavyRainDelay;
+      case 'light': return Math.max(6, 12 * soilFactor);  // 12h base, sand=6h, loam=12h, clay=18h
+      case 'moderate': return Math.max(24 * soilFactor, rainDelayModel.minDelayAfterRain);  // 24h base
+      case 'heavy': return rainDelayModel.heavyRainDelay * soilFactor;  // 48h base
       default: return 0;
     }
   }
@@ -193,6 +210,8 @@ export class RainDelayModel {
   /**
    * Sun drying reduction factor (0-1).
    * More sun = faster drying = less delay needed.
+   * Research: solar radiation is primary driver of evapotranspiration.
+   * Reference ET: 0.25-0.5 inches/day (6-12mm/day) in summer.
    */
   private sunDryingFactor(
     hourlyWeather: HourlyWeather[],
@@ -207,12 +226,15 @@ export class RainDelayModel {
       totalSunHours += hour.sunshine_hours;
     }
 
-    return Math.min(0.5, totalSunHours * rainDelayModel.sunDryingRate);
+    // Increased rate: 0.12 per sun hour (was 0.1)
+    // Caps at 0.6 for sunny conditions (was 0.5)
+    return Math.min(0.6, totalSunHours * rainDelayModel.sunDryingRate * 1.2);
   }
 
   /**
    * Temperature drying reduction factor (0-1).
    * Warmer = faster drying.
+   * Research: ET increases ~10% per 3°C above 15°C.
    */
   private tempDryingFactor(
     hourlyWeather: HourlyWeather[],
@@ -228,7 +250,8 @@ export class RainDelayModel {
       }
     }
 
-    return Math.min(0.5, warmHours);
+    // Increased cap: 0.4 (was 0.5) - more realistic for typical conditions
+    return Math.min(0.4, warmHours);
   }
 
   /**
@@ -239,7 +262,12 @@ export class RainDelayModel {
   }
 
   /**
-   * Estimate current soil moisture percentage.
+   * Estimate current soil moisture percentage using exponential decay model.
+   * Research: SWC(t) = A * e^(-t/τ) + θ_res
+   * - A = initial soil water increase from rainfall
+   * - τ = drying time constant (soil-specific)
+   * - θ_res = residual moisture at ~50% field capacity
+   * - Weather factors modify the effective drying rate
    */
   private estimateSoilMoisture(
     rain: { total_mm: number },
@@ -247,34 +275,64 @@ export class RainDelayModel {
     sunFactor: number,
     tempFactor: number,
   ): number {
-    // Base soil moisture ~20%
-    // Rain adds ~5% per mm (simplified)
-    // Drying reduces by sun/temp factors
-    const baseMoisture = 20;
-    const rainAddition = rain.total_mm * 5;
-    const drying = (sunFactor + tempFactor) * hoursSince * 0.5;
+    const fc = this.fieldCapacity();
+    const tau = this.dryingTimeConstant();
+    const thetaRes = fc * 0.5;  // Residual moisture at ~50% of field capacity
 
-    return Math.max(5, Math.min(50, baseMoisture + rainAddition - drying));
+    // Initial moisture increase: ~0.5% per mm of rainfall
+    const initialIncrease = rain.total_mm * 0.5;
+
+    // Weather-modified drying rate (faster drying = smaller effective tau)
+    // Sun and temp increase evapotranspiration, accelerating drying
+    const weatherModifier = Math.max(0.5, 1 - (sunFactor + tempFactor) * 0.2);
+    const effectiveTau = tau * weatherModifier;
+
+    // Exponential decay model
+    const currentMoisture = thetaRes + initialIncrease * Math.exp(-hoursSince / effectiveTau);
+
+    return Math.max(5, Math.min(fc + 10, currentMoisture));
   }
 
   /**
    * Field capacity for soil type.
+   * Research: sand 15-25%, loam 35-45%, clay 45-55% (Cornell Extension)
    */
   private fieldCapacity(): number {
-    // Default: loam at 30%
-    return 30;
+    const soilType = this.config.rainDelayModel.soilType;
+    switch (soilType) {
+      case 'sand': return 20;  // 15-25% range
+      case 'loam': return 40;  // 35-45% range
+      case 'clay': return 50;  // 45-55% range
+      default: return 40;
+    }
+  }
+
+  /**
+   * Drying time constant (tau) for exponential decay model.
+   * Research: sand ~24h, loam ~72h, clay ~168h
+   */
+  private dryingTimeConstant(): number {
+    const soilType = this.config.rainDelayModel.soilType;
+    switch (soilType) {
+      case 'sand': return 24;   // 1 day
+      case 'loam': return 72;   // 3 days
+      case 'clay': return 168;  // 7 days
+      default: return 72;
+    }
   }
 
   /**
    * Result when there's no significant rain.
    */
   private noRainResult(): RainDelayResult {
+    const fc = this.fieldCapacity();
     return {
       earliest_delay_hours: 0,
       optimal_delay_hours: 0,
       is_safe_to_mow: true,
-      estimated_soil_moisture_pct: 20,
-      field_capacity_pct: this.fieldCapacity(),
+      estimated_soil_moisture_pct: fc * 0.5,  // ~50% of field capacity when dry
+      field_capacity_pct: fc,
+      safe_to_mow_time: null,
       details: {
         last_significant_rain: null,
         last_rain_mm: 0,

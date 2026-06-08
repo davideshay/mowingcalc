@@ -13,14 +13,35 @@ export interface AlgorithmStateResponse {
   growth_mm: number;
   daily_growth_mm: number;
   rain_delay_hours: number;
+  optimal_delay_hours: number;
   is_safe_to_mow: boolean;
+  safe_to_mow_time: string | null;
+  estimated_soil_moisture_pct: number;
+  field_capacity_pct: number;
+  rain_delay_details: {
+    last_significant_rain: string | null;
+    last_rain_mm: number;
+    rain_intensity: 'none' | 'light' | 'moderate' | 'heavy';
+    base_delay_hours: number;
+    soil_factor: number;
+    weather_factor: number;
+    sun_drying_reduction: number;
+    temp_drying_reduction: number;
+  };
   hours_since_mow: number;
   last_mow_time: string | null;
   next_review: string;
   timestamp: string;
 }
 
+export interface SunshineSource {
+  entity_id: string;
+  type: 'sunshine' | 'uv_index';
+}
+
 export interface ConfigResponse {
+  readonlyMode: boolean;
+  displayUnits: 'metric' | 'imperial';
   grassType: string;
   growthLowerLimit: number;
   growthUpperLimit: number;
@@ -37,6 +58,7 @@ export interface ConfigResponse {
     sunDryingRate: number;
     tempDryingFactor: number;
     soilType: 'sand' | 'loam' | 'clay';
+    significantRainThreshold: number;
   };
   minTimeBetweenMows: number;
   maxTimeBetweenMows: number;
@@ -47,15 +69,15 @@ export interface ConfigResponse {
   mowingWindows: Record<string, Array<{ start: string; end: string }>>;
   entityGroups: {
     rainfallSensors: string[];
+    rainfallUnit: 'millimeters' | 'inches';
     temperatureSensors: string[];
-    sunshineSensors: string[];
-    humiditySensors: string[];
-    windSpeedSensors: string[];
+    temperatureUnit: 'celsius' | 'fahrenheit';
+    sunshineSources: Array<{ entity_id: string; type: 'sunshine' | 'uv_index' }>;
     weatherForecastEntity: string;
+    hourlyForecastEntity: string;
+    dailyForecastEntity: string;
     mowerType: 'switch' | 'lawn_mower' | 'custom';
     mowerEntity: string;
-    mowerStateEntity: string;
-    mowerBatteryEntity: string;
     lastMowTimeEntity: string;
     sunEntity: string;
   };
@@ -73,6 +95,7 @@ export interface MowerStatusResponse {
   available: boolean;
   state?: string;
   battery_pct?: number;
+  last_mowed?: string;
 }
 
 export interface MowEvent {

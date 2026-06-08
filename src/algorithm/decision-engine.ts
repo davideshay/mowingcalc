@@ -5,6 +5,7 @@ import { HAClient } from '../ha/client';
 import { WeatherService, HourlyWeather } from '../weather/service';
 import { GrowthModel, GrowthResult } from './growth-model';
 import { RainDelayModel, RainDelayResult } from './rain-delay';
+import { WeatherSummary } from '../weather/service';
 
 const logger = pino({ level: 'info' });
 
@@ -119,7 +120,11 @@ export class DecisionEngine {
 
     // Check 2: Rain delay not satisfied -> wait
     if (!rainDelay.is_safe_to_mow) {
-      const remaining = Math.max(0, rainDelay.earliest_delay_hours - hoursSinceMow);
+      const lastRainTs = rainDelay.details.last_significant_rain;
+      const hoursSinceRain = lastRainTs
+        ? (Date.now() - new Date(lastRainTs).getTime()) / 3600000
+        : 0;
+      const remaining = Math.max(0, rainDelay.earliest_delay_hours - hoursSinceRain);
       return this.noMow(
         `Soil still too wet. ${remaining.toFixed(1)}h remaining before safe to mow`,
         growth, rainDelay, params.lastMowTime, hoursSinceMow,
@@ -224,11 +229,19 @@ export class DecisionEngine {
     }
   }
 
+  private getHourlyForecastEntity(): string {
+    return this.config.entityGroups.hourlyForecastEntity || this.config.entityGroups.weatherForecastEntity;
+  }
+
+  private getDailyForecastEntity(): string {
+    return this.config.entityGroups.dailyForecastEntity || this.config.entityGroups.weatherForecastEntity;
+  }
+
   private async checkForecast(hours: number, maxChance: number): Promise<boolean> {
     if (!this.ha) return true; // No HA = assume safe
     try {
       const forecast = await this.ha.getWeatherForecast(
-        this.config.entityGroups.weatherForecastEntity,
+        this.getHourlyForecastEntity(),
         'hourly',
       );
       for (let i = 0; i < hours && i < forecast.length; i++) {
@@ -249,10 +262,10 @@ export class DecisionEngine {
   private async checkForecastLookahead(days: number, maxChance: number): Promise<boolean> {
     if (!this.ha) return false; // No HA = can't lookahead
     try {
-      // Get both hourly and daily forecasts in parallel
+      // Get both hourly and daily forecasts in parallel - may use different entities
       const [hourlyForecast, dailyForecast] = await Promise.all([
-        this.ha.getWeatherForecast(this.config.entityGroups.weatherForecastEntity, 'hourly').catch(() => []),
-        this.ha.getWeatherForecast(this.config.entityGroups.weatherForecastEntity, 'daily').catch(() => []),
+        this.ha.getWeatherForecast(this.getHourlyForecastEntity(), 'hourly').catch(() => []),
+        this.ha.getWeatherForecast(this.getDailyForecastEntity(), 'daily').catch(() => []),
       ]);
 
       // First 24 hours: use hourly forecast for precision
@@ -343,8 +356,14 @@ export class DecisionEngine {
 
   /**
    * Trigger the mower based on mower type config.
+   * BLOCKED when readonlyMode is true - only logs the action.
    */
   public async triggerMower(): Promise<void> {
+    if (this.config.readonlyMode) {
+      logger.warn('READONLY MODE: mower trigger blocked - would have started mower');
+      return;
+    }
+
     if (!this.ha) {
       throw new Error('HA client not available');
     }
@@ -382,28 +401,35 @@ export class DecisionEngine {
 
   /**
    * Get current mower state.
+   * Reads everything from the single lawn_mower entity:
+   *   - state: mower state (mowing, docking, error, charging, etc.)
+   *   - battery_pct: from attributes.battery_level
+   *   - last_mowed: from attributes.last_mowed (if available)
    */
   public async getMowerState(): Promise<Record<string, unknown>> {
     if (!this.ha) {
       return { available: false };
     }
 
-    const { mowerEntity, mowerStateEntity, mowerBatteryEntity } = this.config.entityGroups;
+    const { mowerEntity } = this.config.entityGroups;
 
     const state: Record<string, unknown> = { available: true };
 
     try {
-      const mowerState = await this.ha.getMowerState(mowerEntity);
-      state.state = mowerState.state;
+      const mowerEntityState = await this.ha.getMowerState(mowerEntity);
+      state.state = mowerEntityState.state;
+      const attrs = mowerEntityState.attributes as Record<string, unknown>;
+
+      // Battery level from lawn_mower attributes (Navimow uses "battery" key)
+      if (typeof attrs['battery'] === 'number') {
+        state.battery_pct = attrs['battery'];
+      }
+
+      // Navimow integration does NOT expose last_mowed as an attribute.
+      // The app tracks this locally via mow_events table, or user can
+      // provide a template sensor via lastMowTimeEntity config.
     } catch {
       state.state = 'unavailable';
-    }
-
-    try {
-      const battery = await this.ha.getBatteryLevel(mowerBatteryEntity);
-      if (battery !== null) state.battery_pct = battery;
-    } catch {
-      // Battery unavailable
     }
 
     return state;
@@ -411,8 +437,12 @@ export class DecisionEngine {
 
   /**
    * Write algorithm predictions to HA input helpers.
+   * BLOCKED when readonlyMode is true.
    */
   public async writeToHAHelpers(result: DecisionResult): Promise<void> {
+    if (this.config.readonlyMode) {
+      return;
+    }
     if (!this.ha || !this.config.haInputHelpers.enabled) {
       return;
     }
@@ -436,5 +466,13 @@ export class DecisionEngine {
     } catch (err) {
       logger.warn({ err }, 'Failed to update HA input helpers');
     }
+  }
+
+  /**
+   * Get current weather history used by the algorithm.
+   * Returns hourly weather data for the past 168 hours.
+   */
+  public async getWeatherHistory(): Promise<WeatherSummary> {
+    return this.weather.getHistoricalWeather(168);
   }
 }

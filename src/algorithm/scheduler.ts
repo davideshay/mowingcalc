@@ -41,12 +41,16 @@ export class AlgorithmScheduler {
       logger.info('Running algorithm decision engine');
       const result = await this.engine.run();
 
-      // Write to HA input helpers if enabled
+      // Write to HA input helpers if enabled (blocked in readonly mode)
       await this.engine.writeToHAHelpers(result);
 
       if (result.should_mow) {
-        logger.info({ reason: result.reason }, 'ALGORITHM DECISION: MOW NOW');
-        await this.engine.triggerMower();
+        if (this.engine['config'].readonlyMode) {
+          logger.info({ reason: result.reason }, 'ALGORITHM DECISION: mow recommended but READONLY MODE - mower NOT triggered');
+        } else {
+          logger.info({ reason: result.reason }, 'ALGORITHM DECISION: MOW NOW');
+          await this.engine.triggerMower();
+        }
       } else {
         logger.info({
           reason: result.reason,

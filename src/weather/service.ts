@@ -11,8 +11,6 @@ export interface WeatherReading {
   rainfall_mm?: number;
   temperature_c?: number;
   sunshine_hours?: number;
-  humidity_pct?: number;
-  wind_speed_kmh?: number;
 }
 
 // Processed weather data for algorithms (hourly buckets)
@@ -21,8 +19,6 @@ export interface HourlyWeather {
   rainfall_mm: number;
   temperature_c: number;
   sunshine_hours: number;
-  humidity_pct: number;
-  wind_speed_kmh: number;
 }
 
 // Weather summary for the past N hours
@@ -31,8 +27,6 @@ export interface WeatherSummary {
   total_rainfall_mm: number;
   avg_temperature_c: number;
   total_sunshine_hours: number;
-  avg_humidity_pct: number;
-  avg_wind_speed_kmh: number;
   last_rain_timestamp: string | null;
   last_rain_mm: number;
   hourly: HourlyWeather[];
@@ -63,17 +57,25 @@ export class WeatherService {
     const startTime = new Date(now.getTime() - hours * 3600000);
     const { entityGroups, weatherCacheTTL } = this.config;
 
-    // Fetch all metrics in parallel
-    const [rainData, tempData, sunData, humidityData, windData] = await Promise.all([
+    // Fetch all metrics in parallel (rainfall, temperature, sunshine sources)
+    const sunshineSources = entityGroups.sunshineSources || [];
+    const sunshineEntityIds = sunshineSources
+      .filter((s: any) => s.type === 'sunshine')
+      .map((s: any) => s.entity_id);
+    const uvEntityIds = sunshineSources
+      .filter((s: any) => s.type === 'uv_index')
+      .map((s: any) => s.entity_id);
+
+    // Fetch all metrics in parallel (rainfall, temperature, sunshine sources)
+    const [rainData, tempData, sunData, uvData] = await Promise.all([
       this.fetchMetricWithCache('rainfall', entityGroups.rainfallSensors, startTime, now, weatherCacheTTL),
       this.fetchMetricWithCache('temperature', entityGroups.temperatureSensors, startTime, now, weatherCacheTTL),
-      this.fetchMetricWithCache('sunshine', entityGroups.sunshineSensors, startTime, now, weatherCacheTTL),
-      this.fetchMetricWithCache('humidity', entityGroups.humiditySensors, startTime, now, weatherCacheTTL),
-      this.fetchMetricWithCache('wind_speed', entityGroups.windSpeedSensors, startTime, now, weatherCacheTTL),
+      this.fetchMetricWithCache('sunshine', sunshineEntityIds, startTime, now, weatherCacheTTL),
+      this.fetchMetricWithCache('uv_index', uvEntityIds, startTime, now, weatherCacheTTL),
     ]);
 
     // Merge into hourly buckets
-    const hourly = this.mergeIntoHourly(rainData, tempData, sunData, humidityData, windData, startTime, now, hours);
+    const hourly = this.mergeIntoHourly(rainData, tempData, sunData, uvData, startTime, now, hours);
 
     // Compute summary
     return this.computeSummary(hourly, hours);
@@ -103,7 +105,17 @@ export class WeatherService {
     // Fetch from HA
     logger.info({ metric, entities: entityIds }, 'Fetching weather data from HA');
     try {
-      const data = await this.ha.getAggregatedHistoricalData(entityIds, startTime, endTime);
+      let data = await this.ha.getAggregatedHistoricalData(
+        entityIds, startTime, endTime, 3600000,
+        metric as 'rainfall' | 'temperature' | 'sunshine' | 'uv_index',
+      );
+      // Convert Fahrenheit to Celsius if configured
+      if (metric === 'temperature' && this.config.entityGroups.temperatureUnit === 'fahrenheit') {
+        data = data.map((d) => ({
+          ...d,
+          temperature_c: d.temperature_c != null ? (d.temperature_c - 32) * 5 / 9 : undefined,
+        }));
+      }
       // Store in cache
       this.saveToCache(metric, startTime, endTime, data);
       return data;
@@ -166,9 +178,14 @@ export class WeatherService {
     switch (metric) {
       case 'rainfall': entityId = entityIds.rainfallSensors.join(','); break;
       case 'temperature': entityId = entityIds.temperatureSensors.join(','); break;
-      case 'sunshine': entityId = entityIds.sunshineSensors.join(','); break;
-      case 'humidity': entityId = entityIds.humiditySensors.join(','); break;
-      case 'wind_speed': entityId = entityIds.windSpeedSensors.join(','); break;
+      case 'sunshine': entityId = (entityIds.sunshineSources || [])
+        .filter((s: any) => s.type === 'sunshine')
+        .map((s: any) => s.entity_id)
+        .join(','); break;
+      case 'uv_index': entityId = (entityIds.sunshineSources || [])
+        .filter((s: any) => s.type === 'uv_index')
+        .map((s: any) => s.entity_id)
+        .join(','); break;
     }
 
     stmt.run(
@@ -182,13 +199,13 @@ export class WeatherService {
 
   /**
    * Merge multiple metric arrays into unified hourly buckets.
+   * UV index data is converted to sunshine hours (UV > 0.5 -> 1h sun).
    */
   private mergeIntoHourly(
     rainData: AggregatedWeatherData[],
     tempData: AggregatedWeatherData[],
     sunData: AggregatedWeatherData[],
-    humidityData: AggregatedWeatherData[],
-    windData: AggregatedWeatherData[],
+    uvData: AggregatedWeatherData[],
     startTime: Date,
     endTime: Date,
     hours: number,
@@ -202,8 +219,6 @@ export class WeatherService {
         rainfall_mm: 0,
         temperature_c: 0,
         sunshine_hours: 0,
-        humidity_pct: 0,
-        wind_speed_kmh: 0,
       };
     }
 
@@ -223,7 +238,12 @@ export class WeatherService {
         }
         if (nearest !== null && minDiff < 1800000) { // within 30 min
           // @ts-ignore - dynamic field access
-          buckets[nearest][field] = point.temperature_c || 0;
+          // Read from the correct source field: rainfall_mm for rain, temperature_c for others
+          const sourceValue = field === 'rainfall_mm'
+            ? point.rainfall_mm
+            : point.temperature_c;
+          // @ts-ignore - dynamic field access
+          buckets[nearest][field] = sourceValue || 0;
         }
       }
     };
@@ -231,8 +251,26 @@ export class WeatherService {
     fillBucket(rainData, 'rainfall_mm');
     fillBucket(tempData, 'temperature_c');
     fillBucket(sunData, 'sunshine_hours');
-    fillBucket(humidityData, 'humidity_pct');
-    fillBucket(windData, 'wind_speed_kmh');
+
+    // If no direct sunshine sensors, use UV index as proxy (UV > 0.5 -> 1h sunshine)
+    if (sunData.length === 0 && uvData.length > 0) {
+      for (const point of uvData) {
+        const ts = new Date(point.timestamp).getTime();
+        let nearest = null;
+        let minDiff = Infinity;
+        for (const key of Object.keys(buckets)) {
+          const diff = Math.abs(Number(key) - ts);
+          if (diff < minDiff) {
+            minDiff = diff;
+            nearest = Number(key);
+          }
+        }
+        if (nearest !== null && minDiff < 1800000) {
+          const uv = point.temperature_c || 0; // reusing temperature_c field from HA response
+          buckets[nearest].sunshine_hours = uv > 0.5 ? 1 : 0;
+        }
+      }
+    }
 
     return Object.values(buckets).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
   }
@@ -244,14 +282,13 @@ export class WeatherService {
     const totalRainfall = hourly.reduce((sum, h) => sum + h.rainfall_mm, 0);
     const avgTemp = hourly.length > 0 ? hourly.reduce((sum, h) => sum + h.temperature_c, 0) / hourly.length : 0;
     const totalSunshine = hourly.reduce((sum, h) => sum + h.sunshine_hours, 0);
-    const avgHumidity = hourly.length > 0 ? hourly.reduce((sum, h) => sum + h.humidity_pct, 0) / hourly.length : 0;
-    const avgWind = hourly.length > 0 ? hourly.reduce((sum, h) => sum + h.wind_speed_kmh, 0) / hourly.length : 0;
 
-    // Find last significant rain event (>0.5mm)
+    // Find last significant rain event (uses configurable threshold)
+    const threshold = this.config.rainDelayModel.significantRainThreshold;
     let lastRainTs: string | null = null;
     let lastRainMm = 0;
     for (let i = hourly.length - 1; i >= 0; i--) {
-      if (hourly[i].rainfall_mm > 0.5) {
+      if (hourly[i].rainfall_mm > threshold) {
         lastRainTs = hourly[i].timestamp.toISOString();
         lastRainMm = hourly[i].rainfall_mm;
         break;
@@ -263,8 +300,6 @@ export class WeatherService {
       total_rainfall_mm: Math.round(totalRainfall * 100) / 100,
       avg_temperature_c: Math.round(avgTemp * 100) / 100,
       total_sunshine_hours: Math.round(totalSunshine * 100) / 100,
-      avg_humidity_pct: Math.round(avgHumidity * 100) / 100,
-      avg_wind_speed_kmh: Math.round(avgWind * 100) / 100,
       last_rain_timestamp: lastRainTs,
       last_rain_mm: Math.round(lastRainMm * 100) / 100,
       hourly,

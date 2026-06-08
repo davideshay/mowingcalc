@@ -4,10 +4,10 @@
   "description": "Intelligent lawn mowing scheduler with Home Assistant integration",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "concurrently -n backend,frontend -c blue,green \"tsx watch src/index.ts\" \"cd frontend && npm run dev\"",
     "build:backend": "tsc",
     "build:frontend": "cd frontend && npm run build",
-    "build": "npm run build:backend && npm run build:frontend && mkdir -p frontend-dist && cp -r frontend/dist/* frontend-dist/",
+    "build": "npm run build:backend && npm run build:frontend",
     "start": "node dist/index.js",
     "lint": "eslint src/"
   },
@@ -19,6 +19,7 @@
     "node-fetch": "^3.3.2",
     "pino": "^9.5.0",
     "pino-pretty": "^11.3.0",
+    "ws": "^8.21.0",
     "zod": "^3.24.0"
   },
   "devDependencies": {
@@ -26,6 +27,8 @@
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
     "@types/node": "^22.0.0",
+    "@types/ws": "^8.18.1",
+    "concurrently": "^10.0.3",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"
   }

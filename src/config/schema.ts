@@ -32,29 +32,44 @@ const RainDelayModelSchema = z.object({
   sunDryingRate: z.number().min(0).max(1).default(0.1),
   tempDryingFactor: z.number().min(0).default(0.05),
   soilType: z.enum(['sand', 'loam', 'clay']).default('loam'),
+  // Minimum hourly rainfall (mm) that counts as "significant rain"
+  // WeatherFlow sensors at 0.01 in/hr = ~0.25 mm/hr, so default is 0.25mm
+  // to avoid triggering on sensor noise while catching real light rain
+  significantRainThreshold: z.number().positive().default(0.25),
 });
 
 // Entity groups - maps metric types to arrays of HA entity IDs
 // The algorithm will use median aggregation across all entities in each group
 // to avoid outliers from individual sensors
+const SunshineSourceSchema = z.object({
+  entity_id: z.string(),
+  type: z.enum(['sunshine', 'uv_index']),
+});
+
 const EntityGroupsSchema = z.object({
   // Historical weather sensors (past 7 days, hourly)
   rainfallSensors: z.array(z.string()).default([]),
+  // Rainfall unit reported by sensors ('millimeters' or 'inches')
+  // WeatherFlow AWS hourly_rain sensors report in inches per hour
+  rainfallUnit: z.enum(['millimeters', 'inches']).default('millimeters'),
   temperatureSensors: z.array(z.string()).default([]),
-  sunshineSensors: z.array(z.string()).default([]),
-  humiditySensors: z.array(z.string()).default([]),
-  windSpeedSensors: z.array(z.string()).default([]),
+  // Temperature unit reported by sensors ('celsius' or 'fahrenheit')
+  // WeatherFlow AWS sensors report in Fahrenheit by default
+  temperatureUnit: z.enum(['celsius', 'fahrenheit']).default('celsius'),
+  // Sunshine sources: direct duration sensors OR UV index sensors (app converts UV > 0.5 -> 1h sun)
+  sunshineSources: z.array(SunshineSourceSchema).default([]),
 
-  // Forecast entity (usually a single weather entity with forecast attribute)
+  // Forecast entities - can use different providers for hourly vs daily
+  // If empty, falls back to weatherForecastEntity (legacy single entity)
   weatherForecastEntity: z.string().default('weather.home'),
+  hourlyForecastEntity: z.string().default(''),
+  dailyForecastEntity: z.string().default(''),
 
-  // Mower control
-  mowerType: z.enum(['switch', 'lawn_mower', 'custom']).default('lawn_mower'),
+  // Mower control - single entity for Segway Navimow lawn_mower integration
+  mowerType: z.enum(['lawn_mower', 'switch', 'custom']).default('lawn_mower'),
   mowerEntity: z.string().default('lawn_mower.navimow'),
-  mowerStateEntity: z.string().default('sensor.navimow_state'),
-  mowerBatteryEntity: z.string().default('sensor.navimow_battery'),
 
-  // Last mow time (if not available from mower entity)
+  // Last mow time (optional - if Navimow doesn't expose this as an attribute)
   lastMowTimeEntity: z.string().default(''),
 
   // Sun entity (usually fixed)
@@ -73,6 +88,12 @@ const HAInputHelpersSchema = z.object({
 
 // Main application configuration schema
 export const AppConfigSchema = z.object({
+  // Safety: read-only mode blocks all mower actions
+  readonlyMode: z.boolean().default(true),
+
+  // Display units for UI (internal calculations always metric)
+  displayUnits: z.enum(['metric', 'imperial']).default('metric'),
+
   // Grass and growth
   grassType: z.string().default('tall_fescue'),
   growthLowerLimit: z.number().positive().default(3),

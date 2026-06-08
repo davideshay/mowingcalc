@@ -1,6 +1,12 @@
 import { AppConfig } from './schema';
 
 export const DEFAULT_CONFIG: AppConfig = {
+  // Safety: read-only mode blocks all mower actions (set false to enable auto-mow)
+  readonlyMode: true,
+
+  // Display units
+  displayUnits: 'metric',
+
   // Grass and growth settings
   grassType: 'tall_fescue',
   growthLowerLimit: 3,    // mm - trigger if future conditions uncertain
@@ -20,6 +26,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     sunDryingRate: 0.1,          // reduction factor per hour of sun
     tempDryingFactor: 0.05,      // reduction per degree above 15C
     soilType: 'loam',            // soil type for drying calculations
+    significantRainThreshold: 0.25, // mm - minimum hourly rain to count as significant
   },
 
   // Time constraints
@@ -60,28 +67,31 @@ export const DEFAULT_CONFIG: AppConfig = {
     // Examples: sensor.weather_station_rain, sensor.nws_precipitation, etc.
     rainfallSensors: [],
 
+    // Rainfall unit (WeatherFlow = inches)
+    rainfallUnit: 'millimeters',
+
     // Temperature sensors (historical)
     temperatureSensors: [],
 
-    // Sunshine/UV sensors (historical)
-    sunshineSensors: [],
+    // Temperature unit reported by sensors (WeatherFlow AWS = fahrenheit)
+    temperatureUnit: 'celsius',
 
-    // Humidity sensors (historical)
-    humiditySensors: [],
+    // Sunshine sources (direct duration OR UV index - app converts UV > 0.5 -> 1h sun)
+    sunshineSources: [],
 
-    // Wind speed sensors (historical) - used for drying calculation
-    windSpeedSensors: [],
-
-    // Weather forecast entity (hourly/daily forecast)
+    // Weather forecast entities
+    // Default entity used if hourly/daily are empty
     weatherForecastEntity: 'weather.home',
+    // Separate hourly forecast entity (e.g. weather.nws for 48h hourly)
+    hourlyForecastEntity: '',
+    // Separate daily forecast entity (e.g. weather.openweathermap for 8-day daily)
+    dailyForecastEntity: '',
 
-    // Mower control
+    // Mower control - single entity for Segway Navimow
     mowerType: 'lawn_mower',
     mowerEntity: 'lawn_mower.navimow',
-    mowerStateEntity: 'sensor.navimow_state',
-    mowerBatteryEntity: 'sensor.navimow_battery',
 
-    // Last mow time (if not available from mower entity)
+    // Last mow time (optional - if Navimow doesn't expose this as an attribute)
     lastMowTimeEntity: '',
 
     // Sun entity (usually fixed, provides sunset/sunrise)

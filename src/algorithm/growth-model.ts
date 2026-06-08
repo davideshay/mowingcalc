@@ -83,9 +83,12 @@ export class GrowthModel {
       }
     }
 
-    // Daily growth rate (average over period)
-    const hours = hourlyWeather.length || 1;
-    const dailyGrowth = (totalGrowth / hours) * 24;
+    // Daily growth rate (average over hours since last mow)
+    let activeHours = hourlyWeather.length || 1;
+    if (lastMowTime) {
+      activeHours = hourlyWeather.filter((h) => h.timestamp >= lastMowTime).length || 1;
+    }
+    const dailyGrowth = (totalGrowth / activeHours) * 24;
 
     return {
       daily_growth_mm: Math.round(dailyGrowth * 100) / 100,

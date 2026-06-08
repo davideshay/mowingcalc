@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useConfig, useConfigUpdate } from '../hooks/useApi';
+import { useConfig, useConfigUpdate, useValidateHA } from '../hooks/useApi';
 import { GrassGrowthSection } from '../components/config/GrassGrowthSection';
 import { RainDelaySection } from '../components/config/RainDelaySection';
 import { MowingWindowsEditor } from '../components/config/MowingWindowsEditor';
@@ -12,6 +12,7 @@ export function Configuration() {
   const { fullSaveConfig, saving } = useConfigUpdate();
   const [draft, setDraft] = useState<any>(null);
   const initialized = useRef(false);
+  const { results, haConnected, validating, validate } = useValidateHA();
 
   // Sync draft with loaded config
   useEffect(() => {
@@ -51,6 +52,7 @@ export function Configuration() {
             heavyRainDelay: updates.heavyRainDelay !== undefined ? updates.heavyRainDelay : d.rainDelayModel.heavyRainDelay,
             sunDryingRate: updates.sunDryingRate !== undefined ? updates.sunDryingRate : d.rainDelayModel.sunDryingRate,
             tempDryingFactor: updates.tempDryingFactor !== undefined ? updates.tempDryingFactor : d.rainDelayModel.tempDryingFactor,
+            significantRainThreshold: updates.significantRainThreshold !== undefined ? updates.significantRainThreshold : d.rainDelayModel.significantRainThreshold,
           },
         };
       }
@@ -70,6 +72,12 @@ export function Configuration() {
           haToken: updates.haToken !== undefined ? updates.haToken : d.haToken,
           forecastLookaheadDays: updates.forecastLookaheadDays !== undefined ? updates.forecastLookaheadDays : d.forecastLookaheadDays,
         };
+      }
+      if (section === 'readonly') {
+        return { ...d, readonlyMode: updates.readonlyMode };
+      }
+      if (section === 'units') {
+        return { ...d, displayUnits: updates.displayUnits };
       }
       return { ...d, ...updates };
     });
@@ -93,13 +101,16 @@ export function Configuration() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 pb-20">
+      <div className="sticky top-0 z-50 bg-white border-b border-gray-200 py-3 -mx-4 px-4 flex items-center justify-between shadow-sm">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Configuration</h1>
           <p className="text-gray-600 mt-1">Edit all mowing scheduler parameters</p>
         </div>
         <div className="flex gap-3">
+          <button onClick={validate} disabled={validating || !draft} className="btn-secondary disabled:opacity-50">
+            {validating ? 'Validating...' : 'Validate Setup'}
+          </button>
           <button onClick={onReset} className="btn-secondary">Reset</button>
           <button onClick={onSave} disabled={saving || !draft} className="btn-primary disabled:opacity-50">
             {saving ? 'Saving...' : 'Save Changes'}
@@ -107,10 +118,111 @@ export function Configuration() {
         </div>
       </div>
 
+      {/* Validation Results */}
+       {results.length > 0 || haConnected !== null ? (
+         <div className={`card ${haConnected ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
+           <h3 className={`text-lg font-semibold mb-3 ${haConnected ? 'text-green-800' : 'text-red-800'}`}>
+             {haConnected ? 'Home Assistant Connected' : 'Home Assistant Not Connected'}
+           </h3>
+           {haConnected && results.length > 0 && (
+             <div className="space-y-2">
+               {results.map((result, i) => (
+                 <div key={i} className="flex items-center gap-3 text-sm">
+                   <span className={`w-2 h-2 rounded-full ${
+                     result.status === 'ok' ? 'bg-green-500' :
+                     result.status === 'unavailable' ? 'bg-yellow-500' :
+                     result.status === 'not_found' ? 'bg-red-500' : 'bg-red-500'
+                   }`} />
+                   <span className="font-mono text-gray-700">{result.entity_id}</span>
+                   <span className="text-gray-500">({result.label})</span>
+                   {result.state && result.status === 'ok' && (
+                     <span className="text-gray-500">{result.state}</span>
+                   )}
+                   {result.status === 'unavailable' && (
+                     <span className="text-yellow-600">Entity exists but is currently unavailable</span>
+                   )}
+                   {result.status === 'not_found' && (
+                     <span className="text-red-600">Not found</span>
+                   )}
+                   {result.status === 'error' && (
+                     <span className="text-red-600">{result.message}</span>
+                   )}
+                 </div>
+               ))}
+             </div>
+           )}
+           {!haConnected && (
+             <p className="text-red-600">
+               Cannot connect to Home Assistant. Check your URL and API token settings.
+             </p>
+           )}
+         </div>
+       ) : null}
+
       {!draft && <div className="card"><p className="text-gray-500">Loading...</p></div>}
 
       {draft && (
         <>
+          {/* Display Units */}
+          <section className="card">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Display Units</h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  Choose how temperatures and lengths are displayed. All internal calculations remain metric.
+                </p>
+              </div>
+              <div className="flex bg-gray-100 rounded-lg p-1">
+                <button
+                  type="button"
+                  onClick={() => updateSection('units', { displayUnits: 'metric' })}
+                  className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                    draft.displayUnits === 'metric'
+                      ? 'bg-white shadow text-gray-900'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Metric (°C / mm)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateSection('units', { displayUnits: 'imperial' })}
+                  className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                    draft.displayUnits === 'imperial'
+                      ? 'bg-white shadow text-gray-900'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Imperial (°F / in)
+                </button>
+              </div>
+            </div>
+          </section>
+
+          {/* Read-Only Mode Toggle */}
+          <section className={`card ${draft.readonlyMode ? 'border-amber-300 bg-amber-50' : 'border-green-300 bg-green-50'}`}>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className={`text-lg font-semibold ${draft.readonlyMode ? 'text-amber-900' : 'text-green-900'}`}>
+                  {draft.readonlyMode ? '🔒 Read-Only Mode' : '🔓 Automatic Mower Control'}
+                </h2>
+                <p className={`text-sm mt-1 ${draft.readonlyMode ? 'text-amber-800' : 'text-green-800'}`}>
+                  {draft.readonlyMode
+                    ? 'All mower actions are blocked. The algorithm runs and monitors, but will not trigger the mower.'
+                    : 'The algorithm can automatically start your mower. Review settings carefully before enabling.'}
+                </p>
+              </div>
+              <button
+                onClick={() => updateSection('readonly', { readonlyMode: !draft.readonlyMode })}
+                className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${draft.readonlyMode ? 'bg-amber-500' : 'bg-green-600'}`}
+              >
+                <span
+                  className={`inline-block h-6 w-6 transform rounded-full bg-white shadow-md transition-transform ${draft.readonlyMode ? 'translate-x-1' : 'translate-x-7'}`}
+                />
+              </button>
+            </div>
+          </section>
+
           {/* Grass & Growth */}
           <section className="card">
             <GrassGrowthSection
