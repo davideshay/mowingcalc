@@ -237,11 +237,13 @@ export class HAClient {
             const segmentDuration = (segmentEnd - currentTime) / 3600000;
 
             if (segmentDuration > 0) {
-              const accumulated = rate * segmentDuration;
+              // Rate is in in/hr, duration in hours -> inches. Convert to mm.
+              const accumulatedInches = rate * segmentDuration;
+              const accumulatedMm = accumulatedInches * 25.4;
               if (!rainfallBuckets.has(currentBucket)) {
                 rainfallBuckets.set(currentBucket, []);
               }
-              rainfallBuckets.get(currentBucket)!.push(accumulated);
+              rainfallBuckets.get(currentBucket)!.push(accumulatedMm);
             }
 
             currentTime = segmentEnd;
@@ -414,7 +416,7 @@ export class HAClient {
       if (median !== null && median > 0) {
         result.push({
           timestamp: new Date(timestamp).toISOString(),
-          temperature_c: median, // This will be converted to mm later in weather service
+          rainfall_mm: median,
         });
       }
     });

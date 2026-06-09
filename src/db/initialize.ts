@@ -77,9 +77,17 @@ export function initializeDatabase(dbPath: string): Database.Database {
       estimated_pct REAL NOT NULL,
       last_rain_total_mm REAL NOT NULL DEFAULT 0,
       last_rain_timestamp TEXT,
-      last_updated_at TEXT NOT NULL
+      last_updated_at TEXT NOT NULL,
+      last_weather_start TEXT DEFAULT ''
     );
   `);
+
+  // Migration: add last_weather_start column if it doesn't exist (v2 tracker)
+  try {
+    db.exec('ALTER TABLE soil_moisture_state ADD COLUMN last_weather_start TEXT DEFAULT \'\'');
+  } catch {
+    // Column already exists — ignore
+  }
 
   // Create indexes for common queries
   db.exec(`

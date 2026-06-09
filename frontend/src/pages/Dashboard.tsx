@@ -1,5 +1,6 @@
 import { useAlgorithmState, useMowerStatus, useMowerControl, useConfig } from '../hooks/useApi';
 import { format, formatDistanceToNow } from 'date-fns';
+import { formatLength, toDisplayLength, lengthUnit } from '../utils/units';
 
 function hoursAgo(ts: string | null): string {
   if (!ts) return 'N/A';
@@ -19,6 +20,8 @@ export function Dashboard() {
   const { startMow, triggering } = useMowerControl();
   const { data: config } = useConfig();
   const isReadonly = config?.readonlyMode === true;
+  const units = config?.displayUnits || 'metric';
+  const unit = lengthUnit(units);
 
   if (algoLoading) {
     return <div className="flex items-center justify-center h-64">Loading...</div>;
@@ -81,10 +84,10 @@ export function Dashboard() {
         <div className="card">
           <div className="text-sm font-medium text-gray-500 mb-2">Growth Since Last Mow</div>
           <div className="text-3xl font-bold text-gray-900">
-            {algo?.growth_mm?.toFixed(1)}<span className="text-lg text-gray-500 ml-1">mm</span>
+            {toDisplayLength(algo?.growth_mm ?? 0, units).toFixed(1)}<span className="text-lg text-gray-500 ml-1">{unit}</span>
           </div>
           <div className="mt-2 text-sm text-gray-500">
-            Daily rate: {algo?.daily_growth_mm?.toFixed(2)} mm/day
+            Daily rate: {toDisplayLength(algo?.daily_growth_mm ?? 0, units).toFixed(2)} {unit}/day
           </div>
         </div>
 
@@ -104,7 +107,7 @@ export function Dashboard() {
             {algo?.is_safe_to_mow
               ? 'Soil moisture OK'
               : algo?.rain_delay_details?.last_significant_rain
-                ? `Rain ${hoursAgo(algo.rain_delay_details.last_significant_rain)} (${algo.rain_delay_details.last_rain_mm}mm)`
+                ? `Rain ${hoursAgo(algo.rain_delay_details.last_significant_rain)} (${formatLength(algo.rain_delay_details.last_rain_mm, units)})`
                 : 'Wait for drying'}
           </div>
           {!algo?.is_safe_to_mow && algo?.rain_delay_details?.last_significant_rain && (

@@ -116,6 +116,8 @@ export class WeatherService {
           temperature_c: d.temperature_c != null ? (d.temperature_c - 32) * 5 / 9 : undefined,
         }));
       }
+      // NOTE: rainfall unit conversion is handled in HAClient (getAggregatedStatisticsData line 329).
+      // The HA client converts in/hr -> mm automatically. Do NOT double-convert here.
       // Store in cache
       this.saveToCache(metric, startTime, endTime, data);
       return data;

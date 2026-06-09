@@ -12,6 +12,19 @@ export interface AlgorithmStateResponse {
   reason: string;
   growth_mm: number;
   daily_growth_mm: number;
+  gp_factor: number;
+  moisture_factor: number;
+  sun_factor: number;
+  soil_factor: number;
+  seasonal_factor: number;
+  // Growth model diagnostics
+  avg_temperature_c: number;
+  min_temperature_c: number;
+  max_temperature_c: number;
+  gp_sd: number;
+  gp_optimal_temp: number;
+  base_rate_daily: number;
+  total_hours_processed: number;
   rain_delay_hours: number;
   optimal_delay_hours: number;
   is_safe_to_mow: boolean;
@@ -64,6 +77,8 @@ export interface ConfigResponse {
     tempOptimalMin: number;
     tempOptimalMax: number;
     sunGrowthBoost: number;
+    soilType: 'sand' | 'loam' | 'clay';
+    latitude: number;
   };
   rainDelayModel: {
     minDelayAfterRain: number;
@@ -81,7 +96,9 @@ export interface ConfigResponse {
   algorithmRunInterval: number;
   weatherCacheTTL: number;
   maxPrecipitationChance: number;
+  forecastLookaheadDays: number;
   mowingWindows: Record<string, Array<{ start: string; end: string }>>;
+  lastMowTimeOverride: string | null;
   entityGroups: {
     rainfallSensors: string[];
     rainfallUnit: 'millimeters' | 'inches';

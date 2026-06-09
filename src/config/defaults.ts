@@ -12,11 +12,13 @@ export const DEFAULT_CONFIG: AppConfig = {
   growthLowerLimit: 3,    // mm - trigger if future conditions uncertain
   growthUpperLimit: 6,    // mm - trigger immediately if exceeded
   growthModel: {
-    baseRatePerDay: 0.7,   // mm/day for tall fescue
+    baseRatePerDay: 2.5,   // mm/day for tall fescue (research: 2-3 mm/day at peak GP)
     rainMultiplier: 0.2,   // mm growth per 1mm rainfall
     tempOptimalMin: 15,    // C
     tempOptimalMax: 25,    // C
     sunGrowthBoost: 0.15,  // 15% boost with adequate sun
+    soilType: 'loam',      // soil type for growth model
+    latitude: 40,          // degrees (e.g., 40 = NY/Ohio, 34 = LA)
   },
 
   // Rain delay settings (robot mower optimized)
@@ -45,6 +47,9 @@ export const DEFAULT_CONFIG: AppConfig = {
 
   // Forecast lookahead (mow proactively if rain is coming in next N days)
   forecastLookaheadDays: 3,
+
+  // Debug override: manually set last mow time (ISO 8601 string or null)
+  lastMowTimeOverride: null,
 
   // Home Assistant connection (can also be set via HA_URL/HA_TOKEN env vars)
   haUrl: '',

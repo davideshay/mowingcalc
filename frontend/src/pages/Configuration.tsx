@@ -81,6 +81,9 @@ export function Configuration() {
       if (section === 'units') {
         return { ...d, displayUnits: updates.displayUnits };
       }
+      if (section === 'debug') {
+        return { ...d, lastMowTimeOverride: updates.lastMowTimeOverride };
+      }
       return { ...d, ...updates };
     });
   };
@@ -232,6 +235,7 @@ export function Configuration() {
               growthLowerLimit={draft.growthLowerLimit}
               growthUpperLimit={draft.growthUpperLimit}
               growthModel={draft.growthModel}
+              displayUnits={draft.displayUnits}
               onChange={(updates) => updateSection('grass', updates)}
             />
           </section>
@@ -308,6 +312,94 @@ export function Configuration() {
           <section className="card">
             <h2 className="text-lg font-semibold mb-4">HA Input Helpers</h2>
             <HAInputHelpersEditor helpers={draft.haInputHelpers} onChange={(v) => updateSection('haInputHelpers', v)} />
+          </section>
+
+          {/* Debug: Last Mow Time Override */}
+          <section className="card border-amber-300 bg-amber-50">
+            <h2 className="text-lg font-semibold text-amber-900 mb-1">Debug: Last Mow Time Override</h2>
+            <p className="text-sm text-amber-700 mb-4">
+              Manually override the last mow time used by the growth model. When set, this takes
+              precedence over the Home Assistant entity. Leave empty to use the HA entity value.
+            </p>
+            {draft.lastMowTimeOverride ? (
+              <div>
+                <div className="flex items-end gap-6 mb-4">
+                  <div>
+                    <label className="block text-sm font-medium text-amber-800 mb-1">Date</label>
+                    <input
+                      type="date"
+                      className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      value={new Date(draft.lastMowTimeOverride).toLocaleDateString('en-CA')}
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          const d = new Date(draft.lastMowTimeOverride);
+                          const parts = e.target.value.split('-');
+                          d.setFullYear(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+                          updateSection('debug', { lastMowTimeOverride: d.toISOString() });
+                        }
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-amber-800 mb-1">Time</label>
+                    <input
+                      type="time"
+                      className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      value={new Date(draft.lastMowTimeOverride).toLocaleTimeString('en-CA').slice(0, 5)}
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          const d = new Date(draft.lastMowTimeOverride);
+                          const parts = e.target.value.split(':');
+                          d.setHours(parseInt(parts[0]), parseInt(parts[1]), 0, 0);
+                          updateSection('debug', { lastMowTimeOverride: d.toISOString() });
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="pb-2">
+                    <p className="text-sm text-amber-700">
+                      {new Date(draft.lastMowTimeOverride).toLocaleString()}
+                    </p>
+                    <p className="text-xs text-amber-600">
+                      {Math.round((Date.now() - new Date(draft.lastMowTimeOverride).getTime()) / 3600000)}h ago
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => updateSection('debug', { lastMowTimeOverride: null })}
+                    className="px-3 py-1.5 text-sm font-medium text-red-700 bg-red-100 hover:bg-red-200 rounded-lg transition-colors"
+                  >
+                    Clear Override
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateSection('debug', {
+                      lastMowTimeOverride: new Date().toISOString(),
+                    })}
+                    className="px-3 py-1.5 text-sm font-medium text-amber-700 bg-amber-100 hover:bg-amber-200 rounded-lg transition-colors"
+                  >
+                    Set to Now
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => updateSection('debug', {
+                  lastMowTimeOverride: new Date().toISOString(),
+                })}
+                className="px-4 py-2 text-sm font-medium text-amber-700 bg-amber-100 hover:bg-amber-200 rounded-lg transition-colors"
+              >
+                Set Override
+              </button>
+            )}
+            {!draft.lastMowTimeOverride && (
+              <p className="text-xs text-amber-600 mt-2">
+                No override active — using HA entity: {draft.entityGroups.lastMowTimeEntity || '(none configured)'}
+              </p>
+            )}
           </section>
         </>
       )}

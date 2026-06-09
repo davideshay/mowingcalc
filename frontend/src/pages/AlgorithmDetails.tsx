@@ -80,26 +80,183 @@ export function AlgorithmDetails() {
         <p className="text-gray-600 mt-1">Growth model breakdown and current calculations</p>
       </div>
 
-      {/* Growth Model */}
+      {/* Growth Model - FULL BREAKDOWN */}
       <div className="card">
         <h2 className="text-lg font-semibold mb-4">Growth Model</h2>
+
+        {/* Growth estimate banner */}
+        <div className={`p-4 rounded-lg mb-4 ${algo?.should_mow ? 'bg-green-50 border border-green-200' : 'bg-blue-50 border border-blue-200'}`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-sm font-medium text-gray-600">Estimated growth since last mow</span>
+              <div className="text-3xl font-bold mt-1 text-gray-900">
+                {formatLength(algo?.growth_mm ?? 0, units)}
+              </div>
+              <span className="text-xs text-gray-500">
+                daily rate: {toDisplayLength(algo?.daily_growth_mm ?? 0, units).toFixed(2)} {units === 'imperial' ? 'in' : 'mm'}/day
+              </span>
+            </div>
+            <div className="text-right">
+              <div className="text-sm text-gray-600">Hours since mow</div>
+              <div className="text-2xl font-bold text-gray-800">{algo?.hours_since_mow?.toFixed(0)}h</div>
+              <div className="text-xs text-gray-500 mt-1">
+                Last: {algo?.last_mow_time ? new Date(algo.last_mow_time).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'N/A'}
+              </div>
+            </div>
+          </div>
+
+          {/* Growth progress bar */}
+          <div className="mt-3">
+            <div className="flex justify-between text-xs text-gray-500 mb-1">
+              <span>Lower limit: {formatLength(config?.growthLowerLimit ?? 0, units)}</span>
+              <span>Upper limit: {formatLength(config?.growthUpperLimit ?? 0, units)}</span>
+            </div>
+            <div className="relative w-full bg-gray-200 rounded-full h-3">
+              {/* Lower threshold marker */}
+              <div
+                className="absolute top-0 bottom-0 w-0.5 bg-blue-500 z-10"
+                style={{ left: `${Math.min(100, (config?.growthLowerLimit ?? 3) / (config?.growthUpperLimit ?? 6) * 100)}%` }}
+                title={`Lower limit: ${formatLength(config?.growthLowerLimit ?? 0, units)}`}
+              />
+              {/* Upper threshold marker */}
+              <div
+                className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10"
+                style={{ left: '100%' }}
+                title={`Upper limit: ${formatLength(config?.growthUpperLimit ?? 0, units)}`}
+              />
+              {/* Current growth fill */}
+              <div
+                className={`h-3 rounded-full ${algo?.growth_mm != null && algo.growth_mm >= (config?.growthUpperLimit ?? 6) ? 'bg-red-500' : algo?.growth_mm != null && algo.growth_mm >= (config?.growthLowerLimit ?? 3) ? 'bg-blue-500' : 'bg-gray-400'}`}
+                style={{ width: `${Math.min(100, (algo?.growth_mm ?? 0) / (config?.growthUpperLimit ?? 6) * 100)}%` }}
+              />
+            </div>
+            <div className="flex gap-4 mt-1 text-[10px] text-gray-500">
+              <span className="flex items-center gap-1"><span className="w-2 h-2 bg-blue-500 inline-block rounded-full"></span>Lower: {formatLength(config?.growthLowerLimit ?? 0, units)}</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 bg-red-500 inline-block rounded-full"></span>Upper: {formatLength(config?.growthUpperLimit ?? 0, units)}</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 bg-gray-400 inline-block rounded-full"></span>Current: {formatLength(algo?.growth_mm ?? 0, units)}</span>
+            </div>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Calculation Breakdown */}
           <div>
-            <h3 className="font-medium text-gray-700 mb-2">Current State</h3>
+            <h3 className="font-medium text-gray-700 mb-2">Calculation Breakdown</h3>
             <dl className="space-y-2 text-sm">
-              <div className="flex justify-between"><dt className="text-gray-500">Growth since mow:</dt><dd className="font-medium">{formatLength(algo?.growth_mm ?? 0, units)}</dd></div>
-              <div className="flex justify-between"><dt className="text-gray-500">Daily rate:</dt><dd className="font-medium">{toDisplayLength(algo?.daily_growth_mm ?? 0, units).toFixed(2)} {units === 'imperial' ? 'in' : 'mm'}/day</dd></div>
-              <div className="flex justify-between"><dt className="text-gray-500">Hours since mow:</dt><dd className="font-medium">{algo?.hours_since_mow?.toFixed(0)}h</dd></div>
-              <div className="flex justify-between"><dt className="text-gray-500">Last mowed:</dt><dd className="font-medium">{algo?.last_mow_time ? new Date(algo.last_mow_time).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'N/A'}</dd></div>
+              {/* Temperature stats */}
+              <div className="flex justify-between">
+                <dt className="text-gray-500">Avg temperature:</dt>
+                <dd className="font-medium">{formatTemp(algo?.avg_temperature_c ?? 0, units)}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-gray-500">Min temperature:</dt>
+                <dd className="font-medium">{formatTemp(algo?.min_temperature_c ?? 0, units)}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-gray-500">Max temperature:</dt>
+                <dd className="font-medium">{formatTemp(algo?.max_temperature_c ?? 0, units)}</dd>
+              </div>
+              <div className="border-t pt-2 mt-2">
+                <h4 className="text-xs font-medium text-gray-600 mb-1">Growth Factors (each 0-1.5)</h4>
+                <div className="flex justify-between">
+                  <dt className="text-gray-500">GP factor (temp):</dt>
+                  <dd className="font-medium">{(algo?.gp_factor ?? 0).toFixed(3)}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-gray-500">Moisture factor:</dt>
+                  <dd className="font-medium">{(algo?.moisture_factor ?? 0).toFixed(3)}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-gray-500">Sun factor:</dt>
+                  <dd className="font-medium">{(algo?.sun_factor ?? 0).toFixed(3)}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-gray-500">Soil factor:</dt>
+                  <dd className="font-medium">{(algo?.soil_factor ?? 0).toFixed(3)}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-gray-500">Seasonal factor:</dt>
+                  <dd className="font-medium">{(algo?.seasonal_factor ?? 0).toFixed(3)}</dd>
+                </div>
+                <p className="text-xs text-gray-400 mt-1">
+                  Combined: {((algo?.gp_factor ?? 0) * (algo?.moisture_factor ?? 0) * (algo?.sun_factor ?? 0) * (algo?.soil_factor ?? 0) * (algo?.seasonal_factor ?? 0)).toFixed(3)} → scaled daily rate
+                </p>
+              </div>
+              <div className="border-t pt-2 mt-2">
+                <div className="flex justify-between">
+                  <dt className="text-gray-500">Hours processed:</dt>
+                  <dd className="font-medium">{algo?.total_hours_processed ?? 0}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-gray-500">GP optimal temp:</dt>
+                  <dd className="font-medium">{formatTemp(algo?.gp_optimal_temp ?? 20, units)}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-gray-500">GP standard deviation:</dt>
+                  <dd className="font-medium">{algo?.gp_sd?.toFixed(1)}°C</dd>
+                </div>
+              </div>
             </dl>
           </div>
+
+          {/* Model Parameters */}
           <div>
             <h3 className="font-medium text-gray-700 mb-2">Model Parameters</h3>
             <dl className="space-y-2 text-sm">
-              <div className="flex justify-between"><dt className="text-gray-500">Base rate:</dt><dd className="font-medium">{toDisplayLength(growthModel.baseRatePerDay, units).toFixed(2)} {units === 'imperial' ? 'in' : 'mm'}/day</dd></div>
-              <div className="flex justify-between"><dt className="text-gray-500">Temp range:</dt><dd className="font-medium">{formatTemp(growthModel.tempOptimalMin, units)}-{formatTemp(growthModel.tempOptimalMax, units)}</dd></div>
-              <div className="flex justify-between"><dt className="text-gray-500">Rain multiplier:</dt><dd className="font-medium">{growthModel.rainMultiplier}x</dd></div>
-              <div className="flex justify-between"><dt className="text-gray-500">Sun boost:</dt><dd className="font-medium">+{growthModel.sunGrowthBoost}</dd></div>
+              <div className="flex justify-between">
+                <dt className="text-gray-500">Base rate:</dt>
+                <dd className="font-medium">{toDisplayLength(algo?.base_rate_daily ?? 0, units).toFixed(2)} {units === 'imperial' ? 'in' : 'mm'}/day</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-gray-500">Optimal temp range:</dt>
+                <dd className="font-medium">{formatTemp(growthModel.tempOptimalMin, units)}-{formatTemp(growthModel.tempOptimalMax, units)}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-gray-500">Rain multiplier:</dt>
+                <dd className="font-medium">{growthModel.rainMultiplier}x</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-gray-500">Sun growth boost:</dt>
+                <dd className="font-medium">+{(growthModel.sunGrowthBoost ?? 0).toFixed(2)}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-gray-500">Soil type:</dt>
+                <dd className="font-medium capitalize">{growthModel.soilType || 'loam'}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-gray-500">Latitude:</dt>
+                <dd className="font-medium">{growthModel.latitude || 40}°</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-gray-500">Grass type:</dt>
+                <dd className="font-medium capitalize">{config?.grassType || 'tall_fescue'}</dd>
+              </div>
+
+              {/* How the formula works */}
+              <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                <h4 className="text-xs font-medium text-gray-600 mb-2">Formula (GCSAA Growth Potential + Environmental Factors)</h4>
+                <p className="text-xs text-gray-500 font-mono">
+                  daily_growth = baseRate × GP × moisture × sun × soil × seasonal
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  GP = exp(-0.5 × ((T - T<sub>opt</sub>) / σ)²)
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  T<sub>opt</sub> = {growthModel.tempOptimalMin}-{growthModel.tempOptimalMax}°C, σ = {algo?.gp_sd ?? 5.56}°C
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  moisture = f(VWC, soil_type) — VWC from SoilMoistureTracker
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  sun = 1 + sunshine_fraction × {growthModel.sunGrowthBoost}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  soil = {growthModel.soilType === 'sand' ? 0.85 : growthModel.soilType === 'clay' ? 0.90 : 1.00} ({growthModel.soilType})
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  seasonal = photoperiod curve (lat {growthModel.latitude}°)
+                </p>
+              </div>
             </dl>
           </div>
         </div>

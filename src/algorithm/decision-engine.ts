@@ -63,11 +63,15 @@ export class DecisionEngine {
     const weatherSummary = await this.weather.getHistoricalWeather(168);
     const hourly = weatherSummary.hourly;
 
-    // 3. Calculate grass growth
-    const growth = this.growth.calculateGrowth(hourly, lastMowTime);
-
-    // 4. Calculate rain delay (uses persistent soil moisture tracker)
+    // 3. Calculate rain delay first (updates soil moisture tracker state)
     const rainDelay = this.rainDelay.calculateDelay(hourly, this.soilTracker);
+
+    // 4. Calculate grass growth with current soil moisture from tracker
+    const growth = this.growth.calculateGrowth(
+      hourly,
+      lastMowTime,
+      rainDelay.estimated_soil_moisture_pct,
+    );
 
     // 5. Check forecast for next N hours (avg mowing duration + buffer)
     const forecastHours = Math.ceil(avgMowingDuration / 60) + 1;
@@ -221,6 +225,14 @@ export class DecisionEngine {
   }
 
   private async getLastMowTime(): Promise<Date | null> {
+    // Check config override first (takes precedence over HA entity)
+    if (this.config.lastMowTimeOverride) {
+      const parsed = new Date(this.config.lastMowTimeOverride);
+      if (!isNaN(parsed.getTime())) {
+        return parsed;
+      }
+    }
+
     if (!this.ha) return null;
     try {
       const entity = this.config.entityGroups.lastMowTimeEntity;

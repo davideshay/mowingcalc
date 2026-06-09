@@ -17,12 +17,22 @@ const MowingWindowsSchema = z.object({
 });
 
 // Growth model parameters
+// Research: cool-season grasses grow 2-4 mm/day at peak (spring/fall, well-fertilized)
+// Tall fescue: ~2.5 mm/day at 100% GP; bermuda: ~3.0 mm/day
 const GrowthModelSchema = z.object({
-  baseRatePerDay: z.number().positive().default(0.7),
+  baseRatePerDay: z.number().positive().default(2.5),
   rainMultiplier: z.number().positive().default(0.2),
   tempOptimalMin: z.number().default(15),
   tempOptimalMax: z.number().default(25),
   sunGrowthBoost: z.number().min(0).max(1).default(0.15),
+
+  // NEW: Soil type for growth model (shares with rainDelayModel)
+  // Affects water retention, nutrient availability, and drainage
+  soilType: z.enum(['sand', 'loam', 'clay']).default('loam'),
+
+  // NEW: Latitude for seasonal dormancy calculations
+  // Enables photoperiod-based growth adjustment (degrees, -90 to 90)
+  latitude: z.number().min(-90).max(90).default(40),
 });
 
 // Rain delay model parameters
@@ -96,6 +106,11 @@ const EntityGroupsSchema = z.object({
   sunEntity: z.string().default('sun.sun'),
 });
 
+// Debug override: manually set last mow time (ISO 8601 string)
+// Takes precedence over lastMowTimeEntity when non-empty.
+// Useful when the HA sensor is broken or during model accuracy testing.
+export const LAST_MOW_OVERRIDE_FIELD = 'lastMowTimeOverride';
+
 // HA Input Helpers config (optional)
 const HAInputHelpersSchema = z.object({
   enabled: z.boolean().default(false),
@@ -137,6 +152,10 @@ export const AppConfigSchema = z.object({
 
   // Forecast lookahead (mow proactively if rain is coming in next N days)
   forecastLookaheadDays: z.number().min(1).max(7).default(3),
+
+  // Debug override: manually set last mow time (ISO 8601 string or null)
+  // Takes precedence over lastMowTimeEntity when non-empty.
+  lastMowTimeOverride: z.string().nullable().default(null),
 
   // Home Assistant connection (can also be set via HA_URL/HA_TOKEN env vars)
   haUrl: z.string().default(''),

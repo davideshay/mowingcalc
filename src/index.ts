@@ -55,6 +55,9 @@ function createApp(): express.Application {
   engine = new DecisionEngine(db, ha, config);
   scheduler = new AlgorithmScheduler(engine);
   currentConfig = config;
+  // Clear weather cache on startup — old cached data may have rainfall
+  // stored in the wrong field (temperature_c instead of rainfall_mm).
+  HAClient.clearWeatherCache(db);
   scheduler.start(config.algorithmRunInterval);
 
   // Health check endpoint
@@ -121,6 +124,19 @@ function createApp(): express.Application {
         reason: result.reason,
         growth_mm: result.growth_estimate.growth_since_mow_mm,
         daily_growth_mm: result.growth_estimate.daily_growth_mm,
+        gp_factor: result.growth_estimate.gp_factor,
+        moisture_factor: result.growth_estimate.moisture_factor,
+        sun_factor: result.growth_estimate.sun_factor,
+        soil_factor: result.growth_estimate.soil_factor,
+        seasonal_factor: result.growth_estimate.seasonal_factor,
+        // NEW: Growth model diagnostics
+        avg_temperature_c: result.growth_estimate.avg_temperature_c,
+        min_temperature_c: result.growth_estimate.min_temperature_c,
+        max_temperature_c: result.growth_estimate.max_temperature_c,
+        gp_sd: result.growth_estimate.gp_sd,
+        gp_optimal_temp: result.growth_estimate.gp_optimal_temp,
+        base_rate_daily: result.growth_estimate.base_rate_daily,
+        total_hours_processed: result.growth_estimate.total_hours_processed,
         rain_delay_hours: result.rain_delay.earliest_delay_hours,
         optimal_delay_hours: result.rain_delay.optimal_delay_hours,
         is_safe_to_mow: result.rain_delay.is_safe_to_mow,

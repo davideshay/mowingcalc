@@ -33,14 +33,48 @@ export class ConfigLoader {
     }
 
     // Unflatten DB values back to nested structure
-    const merged = this.mergeWithDefaults(this.unflatten(dbValues), DEFAULT_CONFIG);
+    let merged = this.mergeWithDefaults(this.unflatten(dbValues), DEFAULT_CONFIG);
+
+    // Migrations: apply one-time config updates for schema changes
+    merged = this.applyMigrations(merged, DEFAULT_CONFIG);
 
     // Validate against schema
     return AppConfigSchema.parse(merged);
   }
 
+  // Apply config migrations
+  private applyMigrations(
+    config: Record<string, unknown>,
+    defaults: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const versionKey = 'configVersion';
+    const savedVersion = config[versionKey] as number | undefined;
+    const currentVersion = 2; // increment on each migration
+
+    if ((savedVersion ?? 0) >= currentVersion) {
+      return config; // already migrated
+    }
+
+    // Migration v1 -> v2: fix growth model base rates (were 3-5x too low)
+    if ((savedVersion ?? 0) < 2) {
+      const growthModel = config.growthModel as Record<string, unknown> | undefined;
+      const defaultGM = (defaults.growthModel as Record<string, unknown>) || {};
+      if (growthModel && typeof growthModel.baseRatePerDay === 'number') {
+        // Old base rates were ~0.5-1.0 for cool-season; research says 2-3
+        // Scale up: if below 1.5, use the default from schema (2.5 for tall fescue)
+        if (growthModel.baseRatePerDay < 1.5) {
+          growthModel.baseRatePerDay = defaultGM.baseRatePerDay as number;
+        }
+      }
+    }
+
+    // Save version
+    config[versionKey] = currentVersion;
+    return config;
+  }
+
   // Save full config to DB
-  public save(config: AppConfig): void {
+  public save(config: AppConfig, configVersion?: number): void {
     const now = new Date().toISOString();
     const flat = this.flatten(config);
 
@@ -52,6 +86,10 @@ export class ConfigLoader {
     this.db.transaction(() => {
       for (const [key, value] of Object.entries(flat)) {
         upsert.run({ key, value: JSON.stringify(value), updated_at: now });
+      }
+      // Persist migration version (separate from typed config)
+      if (configVersion !== undefined) {
+        upsert.run({ key: 'configVersion', value: JSON.stringify(configVersion), updated_at: now });
       }
     })();
   }

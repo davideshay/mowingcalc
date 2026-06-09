@@ -1,17 +1,21 @@
 import { useState } from 'react';
 import { GRASS_PRESETS, findGrassPreset } from '../../config/grassPresets';
+import { toDisplayLength, toDisplayTemp, lengthUnit, tempUnit } from '../../utils/units';
+import type { DisplayUnits } from '../../utils/units';
 
 interface Props {
   grassType: string;
   growthLowerLimit: number;
   growthUpperLimit: number;
   growthModel: any;
+  displayUnits: DisplayUnits;
   onChange: (updates: any) => void;
 }
 
-export function GrassGrowthSection({ grassType, growthLowerLimit, growthUpperLimit, growthModel, onChange }: Props) {
+export function GrassGrowthSection({ grassType, growthLowerLimit, growthUpperLimit, growthModel, displayUnits, onChange }: Props) {
   const [advanced, setAdvanced] = useState(false);
   const preset = findGrassPreset(grassType);
+  const unit = lengthUnit(displayUnits);
 
   const handleGrassTypeChange = (newType: string) => {
     const newPreset = findGrassPreset(newType);
@@ -24,6 +28,11 @@ export function GrassGrowthSection({ grassType, growthLowerLimit, growthUpperLim
       });
     }
   };
+
+  // Convert display value back to mm for storage
+  const toMm = (v: number) => displayUnits === 'imperial' ? v * 25.4 : v;
+  // Convert display temp back to Celsius for storage
+  const toC = (v: number) => displayUnits === 'imperial' ? (v - 32) * 5 / 9 : v;
 
   return (
     <div className="space-y-6">
@@ -54,15 +63,15 @@ export function GrassGrowthSection({ grassType, growthLowerLimit, growthUpperLim
         <h3 className="text-lg font-semibold mb-4">When to Mow</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <NumberInput
-            label="Mow when growth reaches (mm)"
-            value={growthLowerLimit}
-            onChange={(v) => onChange({ growthLowerLimit: v })}
+            label={`Mow when growth reaches (${unit})`}
+            value={toDisplayLength(growthLowerLimit, displayUnits)}
+            onChange={(v) => onChange({ growthLowerLimit: toMm(v) })}
             hint="Minimum growth to trigger mowing"
           />
           <NumberInput
-            label="Emergency mow threshold (mm)"
-            value={growthUpperLimit}
-            onChange={(v) => onChange({ growthUpperLimit: v })}
+            label={`Emergency mow threshold (${unit})`}
+            value={toDisplayLength(growthUpperLimit, displayUnits)}
+            onChange={(v) => onChange({ growthUpperLimit: toMm(v) })}
             hint="Maximum growth before emergency mow"
           />
         </div>
@@ -98,9 +107,9 @@ export function GrassGrowthSection({ grassType, growthLowerLimit, growthUpperLim
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <NumberInput
-              label="Base growth rate (mm/day)"
-              value={growthModel?.baseRatePerDay}
-              onChange={(v) => onChange({ growthModel: { ...growthModel, baseRatePerDay: v } })}
+              label={`Base growth rate (${unit}/day)`}
+              value={toDisplayLength(growthModel?.baseRatePerDay ?? 0, displayUnits)}
+              onChange={(v) => onChange({ growthModel: { ...growthModel, baseRatePerDay: toMm(v) } })}
             />
             <NumberInput
               label="Rain multiplier"
@@ -108,19 +117,37 @@ export function GrassGrowthSection({ grassType, growthLowerLimit, growthUpperLim
               onChange={(v) => onChange({ growthModel: { ...growthModel, rainMultiplier: v } })}
             />
             <NumberInput
-              label="Optimal temp min (°C)"
-              value={growthModel?.tempOptimalMin}
-              onChange={(v) => onChange({ growthModel: { ...growthModel, tempOptimalMin: v } })}
+              label={`Optimal temp min (${tempUnit(displayUnits)})`}
+              value={toDisplayTemp(growthModel?.tempOptimalMin ?? 15, displayUnits)}
+              onChange={(v) => onChange({ growthModel: { ...growthModel, tempOptimalMin: toC(v) } })}
             />
             <NumberInput
-              label="Optimal temp max (°C)"
-              value={growthModel?.tempOptimalMax}
-              onChange={(v) => onChange({ growthModel: { ...growthModel, tempOptimalMax: v } })}
+              label={`Optimal temp max (${tempUnit(displayUnits)})`}
+              value={toDisplayTemp(growthModel?.tempOptimalMax ?? 25, displayUnits)}
+              onChange={(v) => onChange({ growthModel: { ...growthModel, tempOptimalMax: toC(v) } })}
             />
             <NumberInput
               label="Sun growth boost"
               value={growthModel?.sunGrowthBoost}
               onChange={(v) => onChange({ growthModel: { ...growthModel, sunGrowthBoost: v } })}
+            />
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Soil Type</label>
+              <select
+                className="input"
+                value={growthModel?.soilType || 'loam'}
+                onChange={(e) => onChange({ growthModel: { ...growthModel, soilType: e.target.value } })}
+              >
+                <option value="sand">Sand (fast drainage, low nutrients)</option>
+                <option value="loam">Loam (optimal balance)</option>
+                <option value="clay">Clay (slow drainage, good nutrients)</option>
+              </select>
+            </div>
+            <NumberInput
+              label="Latitude (degrees)"
+              value={growthModel?.latitude}
+              onChange={(v) => onChange({ growthModel: { ...growthModel, latitude: v } })}
+              hint="For seasonal dormancy (e.g., 40 = NY, 34 = LA)"
             />
           </div>
         </div>
