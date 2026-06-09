@@ -29,7 +29,7 @@ const GrowthModelSchema = z.object({
 // Research-backed thresholds for 60-70 lb robot mowers (RAIN_DELAY_MODEL_RESEARCH.md)
 const RainDelayModelSchema = z.object({
   // Absolute bounds on the rain delay calculation (applied after the model runs)
-  // minDelayAfterRain: minimum hours to wait after ANY significant rain.
+  // minDelayAfterRain: minimum hours to wait after rain is detected.
   //   Even a light sprinkle needs time for surface moisture to dry off the
   //   grass blades. Independent of soil moisture model output.
   minDelayAfterRain: z.number().positive().default(4),
@@ -40,10 +40,6 @@ const RainDelayModelSchema = z.object({
   sunDryingRate: z.number().min(0).max(1).default(0.1),
   tempDryingFactor: z.number().min(0).default(0.05),
   soilType: z.enum(['sand', 'loam', 'clay']).default('loam'),
-  // Minimum hourly rainfall (mm) that counts as "significant rain"
-  // WeatherFlow sensors at 0.01 in/hr = ~0.25 mm/hr, so default is 0.25mm
-  // to avoid triggering on sensor noise while catching real light rain
-  significantRainThreshold: z.number().positive().default(0.1),
 
   // NEW: mower-specific parameters (RAIN_DELAY_MODEL_RESEARCH.md Section 6)
   // Mower weight in lbs - drives compaction threshold automatically

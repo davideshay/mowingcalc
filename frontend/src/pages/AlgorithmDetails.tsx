@@ -199,7 +199,7 @@ export function AlgorithmDetails() {
              <h3 className="font-medium text-gray-700 mb-2">Calculation Breakdown</h3>
              <dl className="space-y-2 text-sm">
                <div className="flex justify-between">
-                 <dt className="text-gray-500">Last significant rain:</dt>
+                 <dt className="text-gray-500">Last rain:</dt>
                  <dd className="font-medium text-right">
                    {details?.last_significant_rain
                      ? `${hoursAgo(details.last_significant_rain)} (${formatTimestamp(details.last_significant_rain)})`
@@ -239,9 +239,9 @@ export function AlgorithmDetails() {
                    <dd className="font-medium">{details?.max_delay_ceil_hours}h</dd>
                  </div>
                  <div className="flex justify-between">
-                   <dt className="text-gray-500">Initial moisture:</dt>
-                   <dd className="font-medium">{details?.initial_soil_moisture_pct?.toFixed(1)}%</dd>
-                 </div>
+                    <dt className="text-gray-500">Current moisture (estimated):</dt>
+                    <dd className="font-medium">{algo?.estimated_soil_moisture_pct?.toFixed(1)}%</dd>
+                  </div>
                </div>
                <div className="border-t pt-2 mt-2">
                  <div className="flex justify-between items-start">
@@ -364,7 +364,6 @@ export function AlgorithmDetails() {
         <WeatherGrid
           hourly={weatherHistory?.hourly || []}
           units={units}
-          significantThreshold={config?.rainDelayModel?.significantRainThreshold ?? 0.25}
         />
       </div>
 

@@ -373,21 +373,16 @@ export class HAClient {
   }
 
   // Build aggregated result from timestamp buckets
-  // For rainfall: use max across sensors (sparse sensors - any sensor detecting rain matters)
-  // For other metrics: use median (robust to outliers)
+  // All metrics use median across sensors (robust to individual sensor outliers)
   private buildAggregatedResult(
     timestampBuckets: Map<number, number[]>,
     metric: string = 'temperature',
   ): AggregatedWeatherData[] {
     const result: AggregatedWeatherData[] = [];
-    const useMax = metric === 'rainfall';
 
     timestampBuckets.forEach((values, timestamp) => {
-      // For rainfall: max across sensors (at least one station detecting rain = rain happened)
-      // For temperature/sunshine: median (robust to individual sensor outliers)
-      const aggregated = useMax
-        ? Math.max(...values.filter((v) => v > 0))
-        : HAClient.median(values);
+      // Median across sensors for all metrics (including rainfall)
+      const aggregated = HAClient.median(values);
 
       if (aggregated !== null && aggregated > 0) {
         if (metric === 'rainfall') {

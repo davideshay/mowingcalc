@@ -5,6 +5,7 @@ import { HAClient } from '../ha/client';
 import { WeatherService, HourlyWeather } from '../weather/service';
 import { GrowthModel, GrowthResult } from './growth-model';
 import { RainDelayModel, RainDelayResult } from './rain-delay';
+import { SoilMoistureTracker } from './soil-moisture';
 import { WeatherSummary } from '../weather/service';
 
 const logger = pino({ level: 'info' });
@@ -26,6 +27,7 @@ export class DecisionEngine {
   private weather: WeatherService;
   private growth: GrowthModel;
   private rainDelay: RainDelayModel;
+  private soilTracker: SoilMoistureTracker;
   private config: AppConfig;
 
   constructor(db: Database.Database, ha: HAClient | null, config: AppConfig) {
@@ -35,6 +37,7 @@ export class DecisionEngine {
     this.weather = new WeatherService(ha!, db, config);
     this.growth = new GrowthModel(config);
     this.rainDelay = new RainDelayModel(config);
+    this.soilTracker = new SoilMoistureTracker(db, config);
   }
 
   public updateConfig(config: AppConfig): void {
@@ -42,6 +45,7 @@ export class DecisionEngine {
     this.weather.updateConfig(config);
     this.growth.updateConfig(config);
     this.rainDelay.updateConfig(config);
+    this.soilTracker.updateConfig(config);
   }
 
   /**
@@ -62,8 +66,8 @@ export class DecisionEngine {
     // 3. Calculate grass growth
     const growth = this.growth.calculateGrowth(hourly, lastMowTime);
 
-    // 4. Calculate rain delay
-    const rainDelay = this.rainDelay.calculateDelay(hourly);
+    // 4. Calculate rain delay (uses persistent soil moisture tracker)
+    const rainDelay = this.rainDelay.calculateDelay(hourly, this.soilTracker);
 
     // 5. Check forecast for next N hours (avg mowing duration + buffer)
     const forecastHours = Math.ceil(avgMowingDuration / 60) + 1;

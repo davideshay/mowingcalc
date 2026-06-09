@@ -71,7 +71,6 @@ export interface ConfigResponse {
     sunDryingRate: number;
     tempDryingFactor: number;
     soilType: 'sand' | 'loam' | 'clay';
-    significantRainThreshold: number;
     mowerWeightLbs: number;
     compactionThreshold: number;
     surfaceDryFactor: number;

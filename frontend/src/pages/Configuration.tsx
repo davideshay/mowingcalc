@@ -52,7 +52,9 @@ export function Configuration() {
             heavyRainDelay: updates.heavyRainDelay !== undefined ? updates.heavyRainDelay : d.rainDelayModel.heavyRainDelay,
             sunDryingRate: updates.sunDryingRate !== undefined ? updates.sunDryingRate : d.rainDelayModel.sunDryingRate,
             tempDryingFactor: updates.tempDryingFactor !== undefined ? updates.tempDryingFactor : d.rainDelayModel.tempDryingFactor,
-            significantRainThreshold: updates.significantRainThreshold !== undefined ? updates.significantRainThreshold : d.rainDelayModel.significantRainThreshold,
+            mowerWeightLbs: updates.mowerWeightLbs !== undefined ? updates.mowerWeightLbs : d.rainDelayModel.mowerWeightLbs,
+            compactionThreshold: updates.compactionThreshold !== undefined ? updates.compactionThreshold : d.rainDelayModel.compactionThreshold,
+            surfaceDryFactor: updates.surfaceDryFactor !== undefined ? updates.surfaceDryFactor : d.rainDelayModel.surfaceDryFactor,
           },
         };
       }

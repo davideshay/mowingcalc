@@ -26,7 +26,6 @@ export const DEFAULT_CONFIG: AppConfig = {
     sunDryingRate: 0.1,             // reduction factor per hour of sun
     tempDryingFactor: 0.05,         // reduction per degree above 15C
     soilType: 'loam',               // soil type for drying calculations
-    significantRainThreshold: 0.1, // inches - minimum total accumulated rain to count as significant
     mowerWeightLbs: 65,             // 60-70 lb robot mower class
     compactionThreshold: 1.05,      // safe to mow at 105% of FC (low compaction risk)
     surfaceDryFactor: 0.3,          // 30% more drying for optimal cut quality

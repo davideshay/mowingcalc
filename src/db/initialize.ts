@@ -70,6 +70,15 @@ export function initializeDatabase(dbPath: string): Database.Database {
       confidence REAL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    -- Persistent soil moisture state (single row, upserted each run)
+    CREATE TABLE IF NOT EXISTS soil_moisture_state (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      estimated_pct REAL NOT NULL,
+      last_rain_total_mm REAL NOT NULL DEFAULT 0,
+      last_rain_timestamp TEXT,
+      last_updated_at TEXT NOT NULL
+    );
   `);
 
   // Create indexes for common queries

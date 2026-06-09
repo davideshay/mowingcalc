@@ -12,7 +12,6 @@ interface HourData {
 interface Props {
   hourly: HourData[];
   units: DisplayUnits;
-  significantThreshold: number;
 }
 
 function weatherIcon(sun: number): string {
@@ -21,10 +20,10 @@ function weatherIcon(sun: number): string {
   return '\u2601\uFE0F';
 }
 
-function rainIcon(mm: number, t: number): string {
+function rainIcon(mm: number): string {
   if (mm <= 0) return '';
-  if (mm > t * 3) return ' \uD83C\uDF27\uFE0F';
-  if (mm > t) return ' \uD83D\uDCA7\uD83D\uDCA7';
+  if (mm > 10) return ' \uD83C\uDF27\uFE0F';
+  if (mm > 3) return ' \uD83D\uDCA7\uD83D\uDCA7';
   return ' \uD83D\uDCA7';
 }
 
@@ -75,7 +74,7 @@ function hourLabel(hr: number): string {
   return `${h}${hr >= 12 ? 'p' : 'a'}`;
 }
 
-function cell(h: HourData | null, units: DisplayUnits, t: number) {
+function cell(h: HourData | null, units: DisplayUnits) {
   if (!h) return (
     <td className="py-2 px-1 text-center" style={{ minWidth: '64px', width: '64px' }}>
       <span className="text-xs text-gray-300">-</span>
@@ -85,7 +84,7 @@ function cell(h: HourData | null, units: DisplayUnits, t: number) {
   const rain = toDisplayLength(h.rainfall_mm, units);
   const temp = toDisplayTemp(h.temperature_c, units);
   const hasRain = h.rainfall_mm > 0;
-  const isSignificant = h.rainfall_mm > t;
+  const isHeavy = h.rainfall_mm > 5;
   const lenU = lengthUnit(units);
   const tmpU = tempUnit(units);
   const localHr = localHour(h.timestamp);
@@ -94,21 +93,21 @@ function cell(h: HourData | null, units: DisplayUnits, t: number) {
 
   return (
      <td
-       className={`py-2 px-1 text-center ${hasRain ? (isSignificant ? 'bg-red-50' : 'bg-blue-50') : ''}`}
+       className={`py-2 px-1 text-center ${hasRain ? (isHeavy ? 'bg-red-50' : 'bg-blue-50') : ''}`}
        style={{ minWidth: '64px', width: '64px' }}
        title={tip}
      >
        <div className="flex flex-col items-center gap-0.5">
          <div className="flex items-center text-lg leading-none">
            <span className="text-base">{weatherIcon(h.sunshine_hours)}</span>
-           {rainIcon(h.rainfall_mm, t)}
+           {rainIcon(h.rainfall_mm)}
          </div>
          <span className={`text-base font-mono font-semibold ${
-           isSignificant ? 'text-red-600' : hasRain ? 'text-blue-600' : 'text-gray-800'
+           isHeavy ? 'text-red-600' : hasRain ? 'text-blue-600' : 'text-gray-800'
          }`}>{Math.round(temp)}</span>
          {hasRain && (
            <span className={`text-[10px] font-mono font-medium ${
-             isSignificant ? 'text-red-500' : 'text-blue-500'
+             isHeavy ? 'text-red-500' : 'text-blue-500'
            }`} title={`${rain.toFixed(2)}${lenU}/h rain`}>
              {rain.toFixed(2)}{lenU}
            </span>
@@ -118,7 +117,7 @@ function cell(h: HourData | null, units: DisplayUnits, t: number) {
    );
 }
 
-export function WeatherGrid({ hourly, units, significantThreshold }: Props) {
+export function WeatherGrid({ hourly, units }: Props) {
   if (!hourly || hourly.length === 0) return <p className="text-sm text-gray-500">No weather history available.</p>;
   const sorted = [...hourly].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
   const cutoff = Date.now() - 5 * 24 * 3600000;
@@ -208,7 +207,7 @@ export function WeatherGrid({ hourly, units, significantThreshold }: Props) {
                 })}
               </tr>
               <tr className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-                {slots(row.hours, row.start, row.end).map((h) => cell(h, units, significantThreshold))}
+                {slots(row.hours, row.start, row.end).map((h) => cell(h, units))}
               </tr>
             </React.Fragment>
           ))}
@@ -216,7 +215,7 @@ export function WeatherGrid({ hourly, units, significantThreshold }: Props) {
       </table>
       <div className="flex items-center gap-4 mt-2 px-2">
         <span className="text-xs text-gray-400">Columns are 1-hour slots within the period</span>
-        <span className="text-xs"><span className="inline-block w-3 h-3 bg-red-50 border border-red-200 rounded mr-1"></span>Significant rain</span>
+        <span className="text-xs"><span className="inline-block w-3 h-3 bg-red-50 border border-red-200 rounded mr-1"></span>Heavy rain</span>
         <span className="text-xs"><span className="inline-block w-3 h-3 bg-blue-50 border border-blue-200 rounded mr-1"></span>Any rain</span>
       </div>
     </div>

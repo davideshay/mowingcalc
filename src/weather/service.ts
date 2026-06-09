@@ -283,12 +283,11 @@ export class WeatherService {
     const avgTemp = hourly.length > 0 ? hourly.reduce((sum, h) => sum + h.temperature_c, 0) / hourly.length : 0;
     const totalSunshine = hourly.reduce((sum, h) => sum + h.sunshine_hours, 0);
 
-    // Find last significant rain event (uses configurable threshold)
-    const threshold = this.config.rainDelayModel.significantRainThreshold;
+    // Find last measurable rain event
     let lastRainTs: string | null = null;
     let lastRainMm = 0;
     for (let i = hourly.length - 1; i >= 0; i--) {
-      if (hourly[i].rainfall_mm > threshold) {
+      if (hourly[i].rainfall_mm > 0.1) {
         lastRainTs = hourly[i].timestamp.toISOString();
         lastRainMm = hourly[i].rainfall_mm;
         break;

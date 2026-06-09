@@ -1,5 +1,6 @@
 import { AppConfig } from '../config/schema';
 import { HourlyWeather } from '../weather/service';
+import { SoilMoistureTracker } from './soil-moisture';
 
 export interface RainDelayResult {
   earliest_delay_hours: number;
@@ -43,17 +44,21 @@ export class RainDelayModel {
     this.config = config;
   }
 
-  public calculateDelay(hourlyWeather: HourlyWeather[]): RainDelayResult {
-    const lastRain = this.findLastSignificantRain(hourlyWeather);
+  public calculateDelay(hourlyWeather: HourlyWeather[], tracker: SoilMoistureTracker): RainDelayResult {
+    // Get the persistent soil moisture estimate
+    const currentMoisture = tracker.update(hourlyWeather);
+
+    // Find last rain for display/intensity info
+    const lastRain = this.findLastRain(hourlyWeather);
 
     if (!lastRain) {
-      return this.noRainResult();
+      return this.noRainResult(currentMoisture);
     }
 
     const intensity = this.classifyRainIntensity(hourlyWeather, lastRain.timestamp);
     const hoursSinceRain = this.hoursSince(lastRain.timestamp);
-    const sunFactor = this.sunDryingFactor(hourlyWeather, lastRain.timestamp);
-    const tempFactor = this.tempDryingFactor(hourlyWeather, lastRain.timestamp);
+    const sunFactor = this.sunDryingFactor(hourlyWeather, new Date());
+    const tempFactor = this.tempDryingFactor(hourlyWeather, new Date());
 
     const fieldCapacity = this.fieldCapacity();
     const tau = this.dryingTimeConstant();
@@ -62,19 +67,22 @@ export class RainDelayModel {
     const weatherModifier = Math.max(0.5, 1 - (sunFactor + tempFactor) * 0.2);
     const effectiveTau = tau * weatherModifier;
 
-    const initialMoisture = fieldCapacity + lastRain.total_mm * 0.5;
-
     const compactionThreshold = this.getCompactionThreshold();
     const safeMoistureThreshold = compactionThreshold * fieldCapacity;
 
     const surfaceDryFactor = this.config.rainDelayModel.surfaceDryFactor;
     const optimalMoistureThreshold = (1 - surfaceDryFactor) * fieldCapacity;
 
-    const safeRatio = (safeMoistureThreshold - thetaRes) / (initialMoisture - thetaRes);
-    const timeToSafe = safeRatio > 0 ? -effectiveTau * Math.log(safeRatio) : 0;
+    // Calculate time to reach safe/optimal from current moisture
+    const safeRatio = (safeMoistureThreshold - thetaRes) / (currentMoisture - thetaRes);
+    const timeToSafe = currentMoisture > safeMoistureThreshold && safeRatio > 0
+      ? -effectiveTau * Math.log(safeRatio)
+      : 0;
 
-    const optimalRatio = (optimalMoistureThreshold - thetaRes) / (initialMoisture - thetaRes);
-    const timeToOptimal = optimalRatio > 0 ? -effectiveTau * Math.log(optimalRatio) : 0;
+    const optimalRatio = (optimalMoistureThreshold - thetaRes) / (currentMoisture - thetaRes);
+    const timeToOptimal = currentMoisture > optimalMoistureThreshold && optimalRatio > 0
+      ? -effectiveTau * Math.log(optimalRatio)
+      : 0;
 
     // Apply absolute bounds: floor and ceiling on the model output
     const minDelay = this.config.rainDelayModel.minDelayAfterRain;
@@ -82,23 +90,22 @@ export class RainDelayModel {
     const effectiveDelay = Math.min(maxDelay, Math.max(minDelay, timeToSafe));
     const optimalDelay = Math.min(maxDelay, Math.max(minDelay * 1.25, timeToOptimal));
 
-    const isSafe = hoursSinceRain >= effectiveDelay;
-    const currentMoisture = thetaRes + (initialMoisture - thetaRes) * Math.exp(-hoursSinceRain / effectiveTau);
-    const safeToMowTime = new Date(lastRain.timestamp.getTime() + effectiveDelay * 3600000);
+    const isSafe = currentMoisture <= safeMoistureThreshold;
+    const safeToMowTime = isSafe ? null : new Date(Date.now() + effectiveDelay * 3600000);
 
     return {
       earliest_delay_hours: Math.round(effectiveDelay * 10) / 10,
       optimal_delay_hours: Math.round(optimalDelay * 10) / 10,
       is_safe_to_mow: isSafe,
-      estimated_soil_moisture_pct: Math.round(Math.max(5, Math.min(fieldCapacity + 20, currentMoisture)) * 10) / 10,
+      estimated_soil_moisture_pct: Math.round(currentMoisture * 10) / 10,
       field_capacity_pct: fieldCapacity,
-      safe_to_mow_time: safeToMowTime.toISOString(),
+      safe_to_mow_time: safeToMowTime?.toISOString() ?? null,
       details: {
         last_significant_rain: lastRain.timestamp.toISOString(),
         last_rain_mm: Math.round(lastRain.total_mm * 100) / 100,
         rain_intensity: intensity,
         hours_since_rain: Math.round(hoursSinceRain * 10) / 10,
-        initial_soil_moisture_pct: Math.round(initialMoisture * 10) / 10,
+        initial_soil_moisture_pct: Math.round(currentMoisture * 10) / 10,
         drying_time_constant: tau,
         effective_tau: Math.round(effectiveTau * 10) / 10,
         sun_drying_modifier: Math.round(sunFactor * 1000) / 1000,
@@ -110,8 +117,8 @@ export class RainDelayModel {
         safe_moisture_threshold: Math.round(safeMoistureThreshold * 10) / 10,
         optimal_moisture_threshold: Math.round(optimalMoistureThreshold * 10) / 10,
         surface_dry_factor: surfaceDryFactor,
-        time_to_safe_hours: Math.round(timeToSafe * 10) / 10,
-        time_to_optimal_hours: Math.round(timeToOptimal * 10) / 10,
+        time_to_safe_hours: Math.round(Math.max(0, timeToSafe) * 10) / 10,
+        time_to_optimal_hours: Math.round(Math.max(0, timeToOptimal) * 10) / 10,
         min_delay_floor_hours: minDelay,
         max_delay_ceil_hours: maxDelay,
       },
@@ -125,14 +132,9 @@ export class RainDelayModel {
     return 1.05 - (weight - 100) * 0.0005;
   }
 
-  private findLastSignificantRain(
+  private findLastRain(
     hourlyWeather: HourlyWeather[],
   ): { timestamp: Date; total_mm: number } | null {
-    const thresholdIn = this.config.rainDelayModel.significantRainThreshold;
-    const thresholdMm = this.config.entityGroups.rainfallUnit === 'inches'
-      ? thresholdIn * 25.4
-      : thresholdIn;
-
     const reversed = [...hourlyWeather].reverse();
     let totalMm = 0;
     let lastTimestamp: Date | null = null;
@@ -147,7 +149,7 @@ export class RainDelayModel {
       }
     }
 
-    if (totalMm < thresholdMm || lastTimestamp === null) return null;
+    if (lastTimestamp === null) return null;
 
     const rounded = new Date(lastTimestamp);
     rounded.setUTCMinutes(0, 0, 0);
@@ -171,12 +173,11 @@ export class RainDelayModel {
 
   private sunDryingFactor(
     hourlyWeather: HourlyWeather[],
-    rainTimestamp: Date,
+    _now: Date,
   ): number {
     const { rainDelayModel } = this.config;
     let totalSunHours = 0;
     for (const hour of hourlyWeather) {
-      if (hour.timestamp < rainTimestamp) continue;
       totalSunHours += hour.sunshine_hours;
     }
     return Math.min(0.6, totalSunHours * rainDelayModel.sunDryingRate);
@@ -184,12 +185,11 @@ export class RainDelayModel {
 
   private tempDryingFactor(
     hourlyWeather: HourlyWeather[],
-    rainTimestamp: Date,
+    _now: Date,
   ): number {
     const { rainDelayModel } = this.config;
     let warmHours = 0;
     for (const hour of hourlyWeather) {
-      if (hour.timestamp < rainTimestamp) continue;
       if (hour.temperature_c > 15) {
         warmHours += (hour.temperature_c - 15) * rainDelayModel.tempDryingFactor;
       }
@@ -221,15 +221,17 @@ export class RainDelayModel {
     }
   }
 
-  private noRainResult(): RainDelayResult {
+  private noRainResult(currentMoisture: number): RainDelayResult {
     const fc = this.fieldCapacity();
     const compactionThreshold = this.getCompactionThreshold();
     const surfaceDryFactor = this.config.rainDelayModel.surfaceDryFactor;
+    const safeMoistureThreshold = compactionThreshold * fc;
+    const isSafe = currentMoisture <= safeMoistureThreshold;
     return {
-      earliest_delay_hours: 0,
-      optimal_delay_hours: 0,
-      is_safe_to_mow: true,
-      estimated_soil_moisture_pct: fc * 0.5,
+      earliest_delay_hours: isSafe ? 0 : this.config.rainDelayModel.minDelayAfterRain,
+      optimal_delay_hours: isSafe ? 0 : this.config.rainDelayModel.minDelayAfterRain * 1.25,
+      is_safe_to_mow: isSafe,
+      estimated_soil_moisture_pct: Math.round(currentMoisture * 10) / 10,
       field_capacity_pct: fc,
       safe_to_mow_time: null,
       details: {
@@ -237,7 +239,7 @@ export class RainDelayModel {
         last_rain_mm: 0,
         rain_intensity: 'none',
         hours_since_rain: 0,
-        initial_soil_moisture_pct: 0,
+        initial_soil_moisture_pct: Math.round(currentMoisture * 10) / 10,
         drying_time_constant: this.dryingTimeConstant(),
         effective_tau: this.dryingTimeConstant(),
         sun_drying_modifier: 0,
@@ -246,13 +248,13 @@ export class RainDelayModel {
         temp_drying_reduction: 0,
         mower_weight_lbs: this.config.rainDelayModel.mowerWeightLbs,
         compaction_threshold: compactionThreshold,
-        safe_moisture_threshold: Math.round(compactionThreshold * fc * 10) / 10,
+        safe_moisture_threshold: Math.round(safeMoistureThreshold * 10) / 10,
         optimal_moisture_threshold: Math.round((1 - surfaceDryFactor) * fc * 10) / 10,
         surface_dry_factor: surfaceDryFactor,
         time_to_safe_hours: 0,
         time_to_optimal_hours: 0,
-        min_delay_floor_hours: 0,
-        max_delay_ceil_hours: 0,
+        min_delay_floor_hours: isSafe ? 0 : this.config.rainDelayModel.minDelayAfterRain,
+        max_delay_ceil_hours: this.config.rainDelayModel.heavyRainDelay,
       },
     };
   }
