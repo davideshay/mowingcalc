@@ -67,7 +67,7 @@ export function Dashboard() {
       )}
 
       {/* Main decision card */}
-      <Card sx={{ borderLeft: algo?.should_mow ? '4px solid #22c55e' : '4px solid #d1d5db' }}>
+      <Card sx={{ borderLeft: algo?.should_mow ? '4px solid success.main' : '4px solid grey.400' }}>
         <CardContent>
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <Box>

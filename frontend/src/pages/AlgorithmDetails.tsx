@@ -129,7 +129,7 @@ export function AlgorithmDetails() {
           <Card
             sx={{
               mb: 2,
-              bgcolor: algo?.should_mow ? 'success.light' : 'info.light',
+              bgcolor: 'action.hover',
               borderColor: algo?.should_mow ? 'success.main' : 'info.main',
               borderWidth: 1,
               borderStyle: 'solid',
@@ -367,7 +367,7 @@ export function AlgorithmDetails() {
           <Card
             sx={{
               mb: 2,
-              bgcolor: algo?.is_safe_to_mow ? 'success.light' : 'warning.light',
+              bgcolor: 'action.hover',
               borderColor: algo?.is_safe_to_mow ? 'success.main' : 'warning.main',
               borderWidth: 1,
               borderStyle: 'solid',
@@ -379,7 +379,7 @@ export function AlgorithmDetails() {
                   <Typography variant="body2" color="text.secondary">Safe to mow?</Typography>
                   <Typography
                     variant="h5"
-                    sx={{ color: algo?.is_safe_to_mow ? 'success.dark' : 'warning.dark' }}
+                    sx={{ color: algo?.is_safe_to_mow ? 'success.main' : 'warning.main' }}
                   >
                     {algo?.is_safe_to_mow ? 'Yes' : 'No'}
                   </Typography>
@@ -388,7 +388,7 @@ export function AlgorithmDetails() {
                   {!algo?.is_safe_to_mow && (
                     <>
                       <Typography variant="body2" color="text.secondary">Earliest safe in</Typography>
-                      <Typography variant="h5" sx={{ color: 'warning.dark' }}>{algo?.rain_delay_hours?.toFixed(0)}h</Typography>
+                      <Typography variant="h5" sx={{ color: 'warning.main' }}>{algo?.rain_delay_hours?.toFixed(0)}h</Typography>
                       <Typography variant="caption" color="text.disabled">Optimal: {algo?.optimal_delay_hours?.toFixed(0)}h</Typography>
                     </>
                   )}
@@ -400,7 +400,7 @@ export function AlgorithmDetails() {
                         const hoursAgo = (Date.now() - safeSince.getTime()) / 3600000;
                         return (
                           <>
-                            <Typography variant="h5" sx={{ color: 'success.dark' }}>
+                            <Typography variant="h5" sx={{ color: 'success.main' }}>
                               {hoursAgo < 1
                                 ? `${Math.round(hoursAgo * 60)}m ago`
                                 : hoursAgo < 24
@@ -647,14 +647,14 @@ export function AlgorithmDetails() {
 
                 {/* Expected safe time */}
                 {!algo?.is_safe_to_mow && algo?.safe_to_mow_time && (
-                  <Paper elevation={0} sx={{ mt: 2, p: 2, bgcolor: 'warning.light', borderRadius: 2 }}>
-                    <Typography variant="caption" sx={{ fontWeight: 'medium', color: 'warning.dark', display: 'block', mb: 0.5 }}>
+                  <Paper elevation={0} sx={{ mt: 2, p: 2, bgcolor: 'action.hover', borderRadius: 2 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 'medium', color: 'warning.main', display: 'block', mb: 0.5 }}>
                       Earliest safe to mow
                     </Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'warning.dark' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'warning.main' }}>
                       {format(new Date(algo.safe_to_mow_time), 'EEE MMM d, h:mm a')}
                     </Typography>
-                    <Typography variant="caption" sx={{ color: 'warning.dark', display: 'block', mt: 0.5 }}>
+                    <Typography variant="caption" sx={{ color: 'warning.main', display: 'block', mt: 0.5 }}>
                       (Optimal: {format(new Date(new Date(algo.safe_to_mow_time).getTime() + (algo?.optimal_delay_hours - algo?.rain_delay_hours || 0) * 3600000), 'EEE MMM d, h:mm a')})
                     </Typography>
                   </Paper>

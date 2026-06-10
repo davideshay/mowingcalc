@@ -229,10 +229,10 @@ export function Configuration() {
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
                 <Box>
-                  <Typography variant="h6" sx={{ color: draft.readonlyMode ? 'warning.dark' : 'success.dark' }}>
+                  <Typography variant="h6" sx={{ color: draft.readonlyMode ? 'warning.main' : 'success.main' }}>
                     {draft.readonlyMode ? '🔒 Read-Only Mode' : '🔓 Automatic Mower Control'}
                   </Typography>
-                  <Typography variant="body2" sx={{ color: draft.readonlyMode ? 'warning.dark' : 'success.dark', mt: 0.5 }}>
+                  <Typography variant="body2" sx={{ color: draft.readonlyMode ? 'warning.main' : 'success.main', mt: 0.5 }}>
                     {draft.readonlyMode
                       ? 'All mower actions are blocked. The algorithm runs and monitors, but will not trigger the mower.'
                       : 'The algorithm can automatically start your mower. Review settings carefully before enabling.'}
@@ -366,10 +366,10 @@ export function Configuration() {
           </Card>
 
           {/* Debug: Last Mow Time Override */}
-          <Card sx={{ bgcolor: 'warning.light', borderColor: 'warning.main', borderWidth: 1, borderStyle: 'solid' }}>
+          <Card sx={{ bgcolor: 'action.hover', borderColor: 'warning.main', borderWidth: 1, borderStyle: 'solid' }}>
             <CardContent>
-              <Typography variant="h6" gutterBottom sx={{ color: 'warning.dark' }}>Debug: Last Mow Time Override</Typography>
-              <Typography variant="body2" color="warning.dark" sx={{ mb: 2 }}>
+              <Typography variant="h6" gutterBottom sx={{ color: 'warning.main' }}>Debug: Last Mow Time Override</Typography>
+              <Typography variant="body2" color="warning.main" sx={{ mb: 2 }}>
                 Manually override the last mow time used by the growth model. When set, this takes
                 precedence over the Home Assistant entity. Leave empty to use the HA entity value.
               </Typography>
@@ -407,7 +407,7 @@ export function Configuration() {
                       />
                     </Box>
                     <Box>
-                      <Typography variant="body2" color="warning.dark">
+                      <Typography variant="body2" color="warning.main">
                         {new Date(draft.lastMowTimeOverride).toLocaleString()}
                       </Typography>
                       <Typography variant="caption" color="warning.main">

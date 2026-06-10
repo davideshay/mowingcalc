@@ -40,6 +40,11 @@ const theme = createTheme({
           default: '#f9fafb',
           paper: '#ffffff',
         },
+        text: {
+          primary: '#111827',
+          secondary: '#4b5563',
+          disabled: '#9ca3af',
+        },
         divider: '#e5e7eb',
         action: {
           disabledBackground: '#f3f4f6',
@@ -82,6 +87,11 @@ const theme = createTheme({
         background: {
           default: '#111827',
           paper: '#1f2937',
+        },
+        text: {
+          primary: '#f3f4f6',
+          secondary: '#d1d5db',
+          disabled: '#6b7280',
         },
         divider: '#374151',
         action: {
@@ -128,10 +138,13 @@ const theme = createTheme({
   components: {
     MuiCard: {
       styleOverrides: {
-        root: {
+        root: ({ theme }) => ({
           borderRadius: 12,
-          boxShadow: '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)',
-        },
+          boxShadow:
+            theme.palette.mode === 'dark'
+              ? '0 1px 3px 0 rgb(0 0 0 / 0.4), 0 1px 2px -1px rgb(0 0 0 / 0.4)'
+              : '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)',
+        }),
       },
     },
     MuiTextField: {
@@ -172,9 +185,9 @@ const theme = createTheme({
     },
     MuiTableCell: {
       styleOverrides: {
-        root: {
-          borderBottom: '1px solid rgba(224, 224, 224, 1)',
-        },
+        root: ({ theme }) => ({
+          borderBottom: `1px solid ${theme.palette.divider}`,
+        }),
         head: {
           fontWeight: 600,
         },
@@ -182,9 +195,9 @@ const theme = createTheme({
     },
     MuiDrawer: {
       styleOverrides: {
-        paper: {
-          borderRight: '1px solid rgba(224, 224, 224, 1)',
-        },
+        paper: ({ theme }) => ({
+          borderRight: `1px solid ${theme.palette.divider}`,
+        }),
       },
     },
     MuiTabs: {
