@@ -1,4 +1,5 @@
 import { Component, ErrorInfo, ReactNode } from 'react';
+import { Alert, AlertTitle, Button, Card, CardContent, Typography } from '@mui/material';
 
 interface Props {
   children: ReactNode;
@@ -28,16 +29,21 @@ export class ErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       return (
         this.props.fallback || (
-          <div className="card border-red-200 bg-red-50">
-            <h2 className="text-lg font-semibold text-red-800 mb-2">Something went wrong</h2>
-            <p className="text-red-600 mb-4">{this.state.error?.message}</p>
-            <button
-              onClick={() => this.setState({ hasError: false, error: null })}
-              className="btn-primary"
-            >
-              Try again
-            </button>
-          </div>
+          <Card sx={{ my: 2 }}>
+            <CardContent>
+              <Alert severity="error" variant="filled" sx={{ mb: 2 }}>
+                <AlertTitle>Something went wrong</AlertTitle>
+                <Typography component="span">{this.state.error?.message}</Typography>
+              </Alert>
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={() => this.setState({ hasError: false, error: null })}
+              >
+                Try again
+              </Button>
+            </CardContent>
+          </Card>
         )
       );
     }

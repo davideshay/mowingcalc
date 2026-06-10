@@ -1,4 +1,12 @@
 import { useState } from 'react';
+import Box from '@mui/material/Box';
+import Stack from '@mui/material/Stack';
+import Tabs from '@mui/material/Tabs';
+import Tab from '@mui/material/Tab';
+import TextField from '@mui/material/TextField';
+import IconButton from '@mui/material/IconButton';
+import AddOutlinedIcon from '@mui/icons-material/AddOutlined';
+import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
@@ -40,58 +48,55 @@ export function MowingWindowsEditor({ windows, onChange }: Props) {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
+    <Stack spacing={2}>
+      <Tabs
+        value={activeDay}
+        onChange={(_, day) => setActiveDay(day)}
+        variant="scrollable"
+        scrollButtons="auto"
+      >
         {DAYS.map(day => (
-          <button
-            key={day}
-            type="button"
-            onClick={() => setActiveDay(day)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium capitalize transition-colors ${
-              activeDay === day
-                ? 'bg-primary-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            {day.slice(0, 3)}
-          </button>
+          <Tab key={day} label={day.slice(0, 3)} value={day} />
         ))}
-      </div>
+      </Tabs>
 
-      <div className="space-y-2">
+      <Stack spacing={1}>
         {(windows[activeDay] || []).map((window, index) => (
-          <div key={index} className="flex items-center gap-2">
-            <input
+          <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <TextField
               type="time"
-              className="input"
+              size="small"
+              label="Start"
               value={window.start}
               onChange={(e) => updateWindow(activeDay, index, 'start', e.target.value)}
+              sx={{ minWidth: 140 }}
             />
-            <span className="text-gray-500">to</span>
-            <input
+            <Box sx={{ color: 'text.secondary' }}>to</Box>
+            <TextField
               type="time"
-              className="input"
+              size="small"
+              label="End"
               value={window.end}
               onChange={(e) => updateWindow(activeDay, index, 'end', e.target.value)}
+              sx={{ minWidth: 140 }}
             />
-            <button
-              type="button"
+            <IconButton
+              size="small"
               onClick={() => removeWindow(activeDay, index)}
-              className="btn-secondary p-2"
+              color="error"
             >
-              ✕
-            </button>
-          </div>
+              <DeleteOutlinedIcon />
+            </IconButton>
+          </Box>
         ))}
 
-        <button
-          type="button"
+        <IconButton
           onClick={() => addWindow(activeDay)}
-          className="btn-secondary text-sm"
+          sx={{ alignSelf: 'flex-start' }}
         >
-          + Add Time Window
-        </button>
-      </div>
-    </div>
+          <AddOutlinedIcon />
+        </IconButton>
+      </Stack>
+    </Stack>
   );
 }
