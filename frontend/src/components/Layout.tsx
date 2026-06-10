@@ -53,14 +53,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const drawer = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Logo / Brand */}
-      <Toolbar>
-        <Typography variant="h6" component="div" noWrap>
+      <Box sx={{ px: 3, py: 2 }}>
+        <Typography variant="h6" component="div" noWrap sx={{ fontWeight: 700 }}>
           MowingCalc
         </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
           Smart Lawn Scheduler
         </Typography>
-      </Toolbar>
+      </Box>
       <Divider />
 
       {/* Navigation */}
@@ -114,12 +114,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <Box sx={{ display: 'flex' }}>
-      {/* Top AppBar for mobile */}
+      {/* Top AppBar for mobile only */}
       <AppBar
         position="fixed"
         sx={{
-          width: { lg: `calc(100% - ${DRAWER_WIDTH}px)` },
-          ml: { lg: `${DRAWER_WIDTH}px` },
+          display: { lg: 'none' },
         }}
       >
         <Toolbar>
@@ -127,7 +126,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             color="inherit"
             edge="start"
             onClick={handleDrawerToggle}
-            sx={{ mr: 2, display: { lg: 'none' } }}
+            sx={{ mr: 2 }}
           >
             <MenuIcon />
           </IconButton>
