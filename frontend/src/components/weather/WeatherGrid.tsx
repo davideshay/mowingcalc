@@ -1,4 +1,5 @@
 import React from 'react';
+import { Box, Typography, Table, TableBody, TableCell, TableHead, TableRow } from '@mui/material';
 import { toDisplayLength, toDisplayTemp, tempUnit, lengthUnit } from '../../utils/units';
 import type { DisplayUnits } from '../../utils/units';
 
@@ -76,9 +77,9 @@ function hourLabel(hr: number): string {
 
 function cell(h: HourData | null, units: DisplayUnits) {
   if (!h) return (
-    <td className="py-2 px-1 text-center" style={{ minWidth: '64px', width: '64px' }}>
-      <span className="text-xs text-gray-300">-</span>
-    </td>
+    <TableCell align="center" sx={{ minWidth: '64px', width: '64px', py: 1, px: 0.5 }}>
+      <Typography variant="caption" color="text.disabled">-</Typography>
+    </TableCell>
   );
 
   const rain = toDisplayLength(h.rainfall_mm, units);
@@ -92,37 +93,59 @@ function cell(h: HourData | null, units: DisplayUnits) {
   const tip = `${timeLabel} | Rain:${rain.toFixed(2)}${lenU}/h Temp:${Math.round(temp)}${tmpU} Sun:${(h.sunshine_hours * 100) | 0}%`;
 
   return (
-     <td
-       className={`py-2 px-1 text-center ${hasRain ? (isHeavy ? 'bg-red-50' : 'bg-blue-50') : ''}`}
-       style={{ minWidth: '64px', width: '64px' }}
-       title={tip}
-     >
-       <div className="flex flex-col items-center gap-0.5">
-         <div className="flex items-center text-lg leading-none">
-           <span className="text-base">{weatherIcon(h.sunshine_hours)}</span>
-           {rainIcon(h.rainfall_mm)}
-         </div>
-         <span className={`text-base font-mono font-semibold ${
-           isHeavy ? 'text-red-600' : hasRain ? 'text-blue-600' : 'text-gray-800'
-         }`}>{Math.round(temp)}</span>
-         {hasRain && (
-           <span className={`text-[10px] font-mono font-medium ${
-             isHeavy ? 'text-red-500' : 'text-blue-500'
-           }`} title={`${rain.toFixed(2)}${lenU}/h rain`}>
-             {rain.toFixed(2)}{lenU}
-           </span>
-         )}
-       </div>
-     </td>
-   );
+    <TableCell
+      align="center"
+      sx={{
+        minWidth: '64px',
+        width: '64px',
+        py: 1,
+        px: 0.5,
+        bgcolor: hasRain ? (isHeavy ? 'error.hover' : 'info.hover') : 'inherit',
+      }}
+      title={tip}
+    >
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.25 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', fontSize: '1.125rem', lineHeight: 1 }}>
+          <span>{weatherIcon(h.sunshine_hours)}</span>
+          {rainIcon(h.rainfall_mm)}
+        </Box>
+        <Typography
+          variant="body2"
+          component="span"
+          sx={{
+            fontFamily: 'monospace',
+            fontWeight: 'semibold',
+            color: isHeavy ? 'error.main' : hasRain ? 'info.main' : 'text.primary',
+          }}
+        >
+          {Math.round(temp)}
+        </Typography>
+        {hasRain && (
+          <Typography
+            variant="caption"
+            component="span"
+            sx={{
+              fontFamily: 'monospace',
+              fontWeight: 'medium',
+              fontSize: '0.625rem',
+              color: isHeavy ? 'error.main' : 'info.main',
+            }}
+            title={`${rain.toFixed(2)}${lenU}/h rain`}
+          >
+            {rain.toFixed(2)}{lenU}
+          </Typography>
+        )}
+      </Box>
+    </TableCell>
+  );
 }
 
 export function WeatherGrid({ hourly, units }: Props) {
-  if (!hourly || hourly.length === 0) return <p className="text-sm text-gray-500">No weather history available.</p>;
+  if (!hourly || hourly.length === 0) return <Typography variant="body2" color="text.secondary">No weather history available.</Typography>;
   const sorted = [...hourly].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
   const cutoff = Date.now() - 5 * 24 * 3600000;
   const filtered = sorted.filter(h => new Date(h.timestamp).getTime() >= cutoff);
-  if (filtered.length === 0) return <p className="text-sm text-gray-500">No data for past 5 days.</p>;
+  if (filtered.length === 0) return <Typography variant="body2" color="text.secondary">No data for past 5 days.</Typography>;
 
   // Only include days that have at least one hour of real sensor data
   // (excludes pre-filled zero buckets from the weather service)
@@ -186,38 +209,57 @@ export function WeatherGrid({ hourly, units }: Props) {
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full border-collapse">
-        <thead>
-          <tr className="border-b-2 border-gray-200">
-            <th className="text-left py-2 px-2 text-xs font-semibold text-gray-500 w-14">Day</th>
-            <th className="text-left py-2 px-1 text-xs font-semibold text-gray-500 w-16">Period</th>
-            <th colSpan={12} className="py-2 px-1 text-center text-[10px] font-medium text-gray-400">Hour (local time)</th>
-          </tr>
-        </thead>
-        <tbody>
+    <Box sx={{ overflowX: 'auto' }}>
+      <Table size="small">
+        <TableHead>
+          <TableRow sx={{ borderBottom: '2px solid', borderColor: 'divider' }}>
+            <TableCell sx={{ py: 1, px: 1, fontSize: '0.75rem', fontWeight: 'semibold', color: 'text.secondary', width: '56px' }}>Day</TableCell>
+            <TableCell sx={{ py: 1, px: 0.5, fontSize: '0.75rem', fontWeight: 'semibold', color: 'text.secondary', width: '64px' }}>Period</TableCell>
+            <TableCell colSpan={12} sx={{ py: 1, px: 0.5, textAlign: 'center', fontSize: '0.625rem', fontWeight: 'medium', color: 'text.disabled' }}>Hour (local time)</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
           {allRows.map((row) => (
             <React.Fragment key={row.key}>
-              <tr className="border-b border-gray-100">
-                <td className="py-1 px-2 text-xs font-semibold text-gray-700 whitespace-nowrap border-r border-gray-200 align-top" rowSpan={2}>{row.label}</td>
-                <td className="py-0.5 px-1 text-[10px] text-gray-400 font-medium align-top" rowSpan={2}>{row.period}</td>
+              <TableRow sx={{ borderBottom: 1, borderColor: 'divider' }}>
+                <TableCell sx={{ py: 0.5, px: 1, fontSize: '0.75rem', fontWeight: 'semibold', color: 'text.primary', whiteSpace: 'nowrap', borderRight: 1, borderColor: 'divider', align: 'top' }} rowSpan={2}>{row.label}</TableCell>
+                <TableCell sx={{ py: 0.5, px: 0.5, fontSize: '0.625rem', color: 'text.disabled', fontWeight: 'medium', align: 'top' }} rowSpan={2}>{row.period}</TableCell>
                 {Array.from({ length: 12 }, (_, i) => {
                   const hr = row.start <= row.end ? row.start + i : (row.start + i) % 24;
-                  return <td key={i} className="py-0.5 px-1 text-center text-[10px] font-medium text-gray-400" style={{ minWidth: '64px', width: '64px' }}>{hourLabel(hr)}</td>;
+                  return (
+                    <TableCell key={i} sx={{ py: 0.5, px: 0.5, textAlign: 'center', fontSize: '0.625rem', fontWeight: 'medium', color: 'text.disabled', minWidth: '64px', width: '64px' }}>
+                      {hourLabel(hr)}
+                    </TableCell>
+                  );
                 })}
-              </tr>
-              <tr className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-                {slots(row.hours, row.start, row.end).map((h) => cell(h, units))}
-              </tr>
+              </TableRow>
+              <TableRow
+                sx={{
+                  borderBottom: 1,
+                  borderColor: 'divider',
+                  '&:hover': { bgcolor: 'action.hover' },
+                  transition: 'background-color 0.2s',
+                }}
+              >
+                {slots(row.hours, row.start, row.end).map((h, idx) => (
+                  <React.Fragment key={idx}>{cell(h, units)}</React.Fragment>
+                ))}
+              </TableRow>
             </React.Fragment>
           ))}
-        </tbody>
-      </table>
-      <div className="flex items-center gap-4 mt-2 px-2">
-        <span className="text-xs text-gray-400">Columns are 1-hour slots within the period</span>
-        <span className="text-xs"><span className="inline-block w-3 h-3 bg-red-50 border border-red-200 rounded mr-1"></span>Heavy rain</span>
-        <span className="text-xs"><span className="inline-block w-3 h-3 bg-blue-50 border border-blue-200 rounded mr-1"></span>Any rain</span>
-      </div>
-    </div>
+        </TableBody>
+      </Table>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 1, px: 1 }}>
+        <Typography variant="caption" color="text.disabled">Columns are 1-hour slots within the period</Typography>
+        <Typography variant="caption">
+          <Box component="span" sx={{ display: 'inline-block', width: 12, height: 12, bgcolor: 'error.hover', border: '1px solid', borderColor: 'error.light', borderRadius: 0.5, mr: 0.5 }} />
+          Heavy rain
+        </Typography>
+        <Typography variant="caption">
+          <Box component="span" sx={{ display: 'inline-block', width: 12, height: 12, bgcolor: 'info.hover', border: '1px solid', borderColor: 'info.light', borderRadius: 0.5, mr: 0.5 }} />
+          Any rain
+        </Typography>
+      </Box>
+    </Box>
   );
 }
