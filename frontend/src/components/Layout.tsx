@@ -3,7 +3,6 @@ import { useState } from 'react';
 import {
   AppBar,
   Box,
-  CssBaseline,
   Divider,
   Drawer,
   IconButton,
@@ -13,6 +12,7 @@ import {
   ListItemIcon,
   ListItemText,
   Toolbar,
+  Tooltip,
   Typography,
   useMediaQuery,
   useTheme,
@@ -22,6 +22,9 @@ import DashboardOutlined from '@mui/icons-material/DashboardOutlined';
 import SettingsOutlined from '@mui/icons-material/SettingsOutlined';
 import CalendarMonthOutlined from '@mui/icons-material/CalendarMonthOutlined';
 import PsychologyOutlined from '@mui/icons-material/PsychologyOutlined';
+import Brightness4Outlined from '@mui/icons-material/Brightness4Outlined';
+import LightModeOutlined from '@mui/icons-material/LightModeOutlined';
+import { useColorScheme } from '@mui/material/styles';
 
 const DRAWER_WIDTH = 240;
 
@@ -37,6 +40,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const isDesktop = useMediaQuery(theme.breakpoints.up('lg'));
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { mode, setMode } = useColorScheme();
+
+  const toggleMode = () => {
+    setMode(mode === 'dark' ? 'light' : 'dark');
+  };
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -84,6 +92,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* Sidebar footer */}
       <Divider />
       <Box sx={{ px: 2, py: 2 }}>
+        <Tooltip title={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
+          <IconButton
+            onClick={toggleMode}
+            color="inherit"
+            size="small"
+            sx={{ mb: 1 }}
+          >
+            {mode === 'dark' ? <LightModeOutlined /> : <Brightness4Outlined />}
+          </IconButton>
+        </Tooltip>
         <Typography variant="caption" color="text.secondary">
           Phase 4 - Web UI
         </Typography>
@@ -96,8 +114,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <Box sx={{ display: 'flex' }}>
-      <CssBaseline />
-
       {/* Top AppBar for mobile */}
       <AppBar
         position="fixed"
