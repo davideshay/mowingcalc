@@ -1,4 +1,7 @@
 import { useState } from 'react';
+import { Stack, Typography, Paper, TextField, Box, Button, Collapse, IconButton, Grid } from '@mui/material';
+import ExpandMoreOutlined from '@mui/icons-material/ExpandMoreOutlined';
+import ExpandLessOutlined from '@mui/icons-material/ExpandLessOutlined';
 import { SOIL_PRESETS, findSoilPreset } from '../../config/soilPresets';
 
 interface Props {
@@ -25,87 +28,109 @@ export function RainDelaySection({ soilType, rainDelayModel, onChange }: Props) 
   };
 
   return (
-    <div className="space-y-6">
+    <Stack spacing={3}>
       {/* Soil Type Selection */}
-      <div>
-        <h3 className="text-lg font-semibold mb-4">Soil Type</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <Box>
+        <Typography variant="h6" gutterBottom>Soil Type</Typography>
+        <Grid container spacing={2}>
           {SOIL_PRESETS.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => handleSoilTypeChange(p.id)}
-              className={`p-4 rounded-xl border-2 text-left transition-all ${
-                soilType === p.id
-                  ? 'border-primary-500 bg-primary-50'
-                  : 'border-gray-200 hover:border-gray-300'
-              }`}
-            >
-              <div className="font-medium text-gray-900">{p.name}</div>
-              <div className="text-sm text-gray-600 mt-1">{p.description}</div>
-            </button>
+            <Grid size={{ xs: 12, sm: 4 }} key={p.id}>
+              <Paper
+                elevation={0}
+                sx={{
+                  p: 2,
+                  borderRadius: 2,
+                  border: soilType === p.id ? '2px solid' : '1px solid',
+                  borderColor: soilType === p.id ? 'primary.main' : 'divider',
+                  bgcolor: soilType === p.id ? 'action.selected' : 'background.paper',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease-in-out',
+                  '&:hover': {
+                    borderColor: soilType === p.id ? 'primary.main' : 'primary.light',
+                  },
+                }}
+                onClick={() => handleSoilTypeChange(p.id)}
+              >
+                <Typography variant="body1" sx={{ fontWeight: 'medium', color: 'text.primary' }}>
+                  {p.name}
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
+                  {p.description}
+                </Typography>
+              </Paper>
+            </Grid>
           ))}
-        </div>
-      </div>
+        </Grid>
+      </Box>
 
-      {/* Mower Settings (NEW) */}
-      <div>
-        <h3 className="text-lg font-semibold mb-4">Mower Settings</h3>
-        <p className="text-sm text-gray-500 mb-4">
+      {/* Mower Settings */}
+      <Box>
+        <Typography variant="h6" gutterBottom>Mower Settings</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           Mower weight affects the compaction threshold. Robot mowers (60-70 lbs) can safely
           mow on wetter soil than conventional riding mowers (300+ lbs).
-        </p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <NumberInput
-            label="Mower weight (lbs)"
-            value={rainDelayModel?.mowerWeightLbs ?? 65}
-            onChange={(v) => onChange({ mowerWeightLbs: v })}
-            hint="60-70 for robot mowers, 200+ for riding mowers"
-          />
-          <NumberInput
-            label="Compaction threshold (% of FC)"
-            value={(rainDelayModel?.compactionThreshold ?? 1.05) * 100}
-            onChange={(v) => onChange({ compactionThreshold: v / 100 })}
-            hint="105% for robot mowers, 100% for conventional"
-            step="1"
-          />
-          <NumberInput
-            label="Surface dry factor (%)"
-            value={(rainDelayModel?.surfaceDryFactor ?? 0.3) * 100}
-            onChange={(v) => onChange({ surfaceDryFactor: v / 100 })}
-            hint="Extra drying beyond safe threshold for optimal cut quality"
-            step="5"
-          />
-        </div>
-      </div>
+        </Typography>
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, sm: 4 }}>
+            <NumberInput
+              label="Mower weight (lbs)"
+              value={rainDelayModel?.mowerWeightLbs ?? 65}
+              onChange={(v) => onChange({ mowerWeightLbs: v })}
+              helperText="60-70 for robot mowers, 200+ for riding mowers"
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 4 }}>
+            <NumberInput
+              label="Compaction threshold (% of FC)"
+              value={(rainDelayModel?.compactionThreshold ?? 1.05) * 100}
+              onChange={(v) => onChange({ compactionThreshold: v / 100 })}
+              helperText="105% for robot mowers, 100% for conventional"
+              step={1}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 4 }}>
+            <NumberInput
+              label="Surface dry factor (%)"
+              value={(rainDelayModel?.surfaceDryFactor ?? 0.3) * 100}
+              onChange={(v) => onChange({ surfaceDryFactor: v / 100 })}
+              helperText="Extra drying beyond safe threshold for optimal cut quality"
+              step={5}
+            />
+          </Grid>
+        </Grid>
+      </Box>
 
       {/* Rain Delay Settings */}
-      <div>
-        <h3 className="text-lg font-semibold mb-4">Rain Delay Settings</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <NumberInput
-            label="Minimum delay after any rain (hours)"
-            value={rainDelayModel?.minDelayAfterRain}
-            onChange={(v) => onChange({ minDelayAfterRain: v })}
-            hint="Absolute floor: even light rain waits this long for surface blades to dry."
-          />
-          <NumberInput
-            label="Maximum rain delay (hours)"
-            value={rainDelayModel?.heavyRainDelay}
-            onChange={(v) => onChange({ heavyRainDelay: v })}
-            hint="Absolute ceiling: model output never exceeds this regardless of how hard it rained."
-          />
-        </div>
-      </div>
+      <Box>
+        <Typography variant="h6" gutterBottom>Rain Delay Settings</Typography>
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <NumberInput
+              label="Minimum delay after any rain (hours)"
+              value={rainDelayModel?.minDelayAfterRain}
+              onChange={(v) => onChange({ minDelayAfterRain: v })}
+              helperText="Absolute floor: even light rain waits this long for surface blades to dry."
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <NumberInput
+              label="Maximum rain delay (hours)"
+              value={rainDelayModel?.heavyRainDelay}
+              onChange={(v) => onChange({ heavyRainDelay: v })}
+              helperText="Absolute ceiling: model output never exceeds this regardless of how hard it rained."
+            />
+          </Grid>
+        </Grid>
+      </Box>
 
       {/* Drying Factors (Advanced) */}
-      {advanced && (
-        <div className="border border-gray-200 rounded-xl p-6 bg-gray-50">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold">Drying Factors</h3>
-            <div className="flex gap-2">
-              <button
-                type="button"
+      <Collapse in={advanced}>
+        <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 3, bgcolor: 'action.hover' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+            <Typography variant="h6" component="h3" sx={{ m: 0 }}>Drying Factors</Typography>
+            <Stack direction="row" spacing={1}>
+              <Button
+                size="small"
                 onClick={() => {
                   if (preset) {
                     onChange({
@@ -114,73 +139,63 @@ export function RainDelaySection({ soilType, rainDelayModel, onChange }: Props) 
                     });
                   }
                 }}
-                className="text-sm text-primary-600 hover:text-primary-700"
               >
                 Reset to defaults
-              </button>
-              <button
-                type="button"
+              </Button>
+              <IconButton
+                size="small"
                 onClick={() => setAdvanced(false)}
-                className="text-sm text-gray-500 hover:text-gray-700"
               >
-                X Close
-              </button>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <NumberInput
-              label="Sun drying rate (per hour)"
-              value={rainDelayModel?.sunDryingRate}
-              onChange={(v) => onChange({ sunDryingRate: v })}
-              hint="How much rain delay is reduced by sunshine"
-            />
-            <NumberInput
-              label="Temperature drying factor"
-              value={rainDelayModel?.tempDryingFactor}
-              onChange={(v) => onChange({ tempDryingFactor: v })}
-              hint="How much rain delay is reduced by temperature"
-            />
-          </div>
-        </div>
-      )}
+                <ExpandLessOutlined />
+              </IconButton>
+            </Stack>
+          </Box>
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <NumberInput
+                label="Sun drying rate (per hour)"
+                value={rainDelayModel?.sunDryingRate}
+                onChange={(v) => onChange({ sunDryingRate: v })}
+                helperText="How much rain delay is reduced by sunshine"
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <NumberInput
+                label="Temperature drying factor"
+                value={rainDelayModel?.tempDryingFactor}
+                onChange={(v) => onChange({ tempDryingFactor: v })}
+                helperText="How much rain delay is reduced by temperature"
+              />
+            </Grid>
+          </Grid>
+        </Box>
+      </Collapse>
 
       {!advanced && (
-        <button
-          type="button"
+        <Button
+          size="small"
+          endIcon={<ExpandMoreOutlined />}
           onClick={() => setAdvanced(true)}
-          className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+          sx={{ textTransform: 'none' }}
         >
-          Show advanced drying factors &rarr;
-        </button>
+          Show advanced drying factors
+        </Button>
       )}
-    </div>
+    </Stack>
   );
 }
 
-function NumberInput({
-  label,
-  value,
-  onChange,
-  hint,
-  step = 'any',
-}: {
-  label: string;
-  value: number;
-  onChange: (v: number) => void;
-  hint?: string;
-  step?: string;
-}) {
+function NumberInput({ label, value, onChange, helperText, step }: { label: string; value: number; onChange: (v: number) => void; helperText?: string; step?: number | 'any' }) {
   return (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-      <input
-        type="number"
-        className="input"
-        value={parseFloat(value.toFixed(2))}
-        onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-        step={step}
-      />
-      {hint && <p className="text-xs text-gray-500 mt-1">{hint}</p>}
-    </div>
+    <TextField
+      type="number"
+      label={label}
+      size="small"
+      fullWidth
+      value={parseFloat(value.toFixed(2))}
+      onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+      slotProps={{ htmlInput: { step: step ?? 'any' } }}
+      helperText={helperText}
+    />
   );
 }

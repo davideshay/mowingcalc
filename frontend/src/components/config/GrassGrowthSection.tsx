@@ -1,4 +1,7 @@
 import { useState } from 'react';
+import { Stack, Typography, Paper, TextField, Box, Button, Collapse, IconButton, Grid } from '@mui/material';
+import ExpandMoreOutlined from '@mui/icons-material/ExpandMoreOutlined';
+import ExpandLessOutlined from '@mui/icons-material/ExpandLessOutlined';
 import { GRASS_PRESETS, findGrassPreset } from '../../config/grassPresets';
 import { toDisplayLength, toDisplayTemp, lengthUnit, tempUnit } from '../../utils/units';
 import type { DisplayUnits } from '../../utils/units';
@@ -35,56 +38,72 @@ export function GrassGrowthSection({ grassType, growthLowerLimit, growthUpperLim
   const toC = (v: number) => displayUnits === 'imperial' ? (v - 32) * 5 / 9 : v;
 
   return (
-    <div className="space-y-6">
+    <Stack spacing={3}>
       {/* Grass Type Selection */}
-      <div>
-        <h3 className="text-lg font-semibold mb-4">Grass Type</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <Box>
+        <Typography variant="h6" gutterBottom>Grass Type</Typography>
+        <Grid container spacing={2}>
           {GRASS_PRESETS.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => handleGrassTypeChange(p.id)}
-              className={`p-4 rounded-xl border-2 text-left transition-all ${
-                grassType === p.id
-                  ? 'border-primary-500 bg-primary-50'
-                  : 'border-gray-200 hover:border-gray-300'
-              }`}
-            >
-              <div className="font-medium text-gray-900">{p.name}</div>
-              <div className="text-sm text-gray-600 mt-1">{p.description}</div>
-            </button>
+            <Grid size={{ xs: 12, sm: 6 }} key={p.id}>
+              <Paper
+                elevation={0}
+                sx={{
+                  p: 2,
+                  borderRadius: 2,
+                  border: grassType === p.id ? '2px solid' : '1px solid',
+                  borderColor: grassType === p.id ? 'primary.main' : 'divider',
+                  bgcolor: grassType === p.id ? 'action.selected' : 'background.paper',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease-in-out',
+                  '&:hover': {
+                    borderColor: grassType === p.id ? 'primary.main' : 'primary.light',
+                  },
+                }}
+                onClick={() => handleGrassTypeChange(p.id)}
+              >
+                <Typography variant="body1" sx={{ fontWeight: 'medium', color: 'text.primary' }}>
+                  {p.name}
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
+                  {p.description}
+                </Typography>
+              </Paper>
+            </Grid>
           ))}
-        </div>
-      </div>
+        </Grid>
+      </Box>
 
       {/* When to Mow */}
-      <div>
-        <h3 className="text-lg font-semibold mb-4">When to Mow</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <NumberInput
-            label={`Mow when growth reaches (${unit})`}
-            value={toDisplayLength(growthLowerLimit, displayUnits)}
-            onChange={(v) => onChange({ growthLowerLimit: toMm(v) })}
-            hint="Minimum growth to trigger mowing"
-          />
-          <NumberInput
-            label={`Emergency mow threshold (${unit})`}
-            value={toDisplayLength(growthUpperLimit, displayUnits)}
-            onChange={(v) => onChange({ growthUpperLimit: toMm(v) })}
-            hint="Maximum growth before emergency mow"
-          />
-        </div>
-      </div>
+      <Box>
+        <Typography variant="h6" gutterBottom>When to Mow</Typography>
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <NumberInput
+              label={`Mow when growth reaches (${unit})`}
+              value={toDisplayLength(growthLowerLimit, displayUnits)}
+              onChange={(v) => onChange({ growthLowerLimit: toMm(v) })}
+              helperText="Minimum growth to trigger mowing"
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <NumberInput
+              label={`Emergency mow threshold (${unit})`}
+              value={toDisplayLength(growthUpperLimit, displayUnits)}
+              onChange={(v) => onChange({ growthUpperLimit: toMm(v) })}
+              helperText="Maximum growth before emergency mow"
+            />
+          </Grid>
+        </Grid>
+      </Box>
 
       {/* Growth Model (Advanced) */}
-      {advanced && (
-        <div className="border border-gray-200 rounded-xl p-6 bg-gray-50">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold">Growth Model Parameters</h3>
-            <div className="flex gap-2">
-              <button
-                type="button"
+      <Collapse in={advanced}>
+        <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 3, bgcolor: 'action.hover' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+            <Typography variant="h6" component="h3" sx={{ m: 0 }}>Growth Model Parameters</Typography>
+            <Stack direction="row" spacing={1}>
+              <Button
+                size="small"
                 onClick={() => {
                   if (preset) {
                     onChange({
@@ -92,92 +111,104 @@ export function GrassGrowthSection({ grassType, growthLowerLimit, growthUpperLim
                     });
                   }
                 }}
-                className="text-sm text-primary-600 hover:text-primary-700"
               >
                 Reset to defaults
-              </button>
-              <button
-                type="button"
+              </Button>
+              <IconButton
+                size="small"
                 onClick={() => setAdvanced(false)}
-                className="text-sm text-gray-500 hover:text-gray-700"
               >
-                ✕ Close
-              </button>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <NumberInput
-              label={`Base growth rate (${unit}/day)`}
-              value={toDisplayLength(growthModel?.baseRatePerDay ?? 0, displayUnits)}
-              onChange={(v) => onChange({ growthModel: { ...growthModel, baseRatePerDay: toMm(v) } })}
-            />
-            <NumberInput
-              label="Rain multiplier"
-              value={growthModel?.rainMultiplier}
-              onChange={(v) => onChange({ growthModel: { ...growthModel, rainMultiplier: v } })}
-            />
-            <NumberInput
-              label={`Optimal temp min (${tempUnit(displayUnits)})`}
-              value={toDisplayTemp(growthModel?.tempOptimalMin ?? 15, displayUnits)}
-              onChange={(v) => onChange({ growthModel: { ...growthModel, tempOptimalMin: toC(v) } })}
-            />
-            <NumberInput
-              label={`Optimal temp max (${tempUnit(displayUnits)})`}
-              value={toDisplayTemp(growthModel?.tempOptimalMax ?? 25, displayUnits)}
-              onChange={(v) => onChange({ growthModel: { ...growthModel, tempOptimalMax: toC(v) } })}
-            />
-            <NumberInput
-              label="Sun growth boost"
-              value={growthModel?.sunGrowthBoost}
-              onChange={(v) => onChange({ growthModel: { ...growthModel, sunGrowthBoost: v } })}
-            />
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Soil Type</label>
-              <select
-                className="input"
+                <ExpandLessOutlined />
+              </IconButton>
+            </Stack>
+          </Box>
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <NumberInput
+                label={`Base growth rate (${unit}/day)`}
+                value={toDisplayLength(growthModel?.baseRatePerDay ?? 0, displayUnits)}
+                onChange={(v) => onChange({ growthModel: { ...growthModel, baseRatePerDay: toMm(v) } })}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <NumberInput
+                label="Rain multiplier"
+                value={growthModel?.rainMultiplier}
+                onChange={(v) => onChange({ growthModel: { ...growthModel, rainMultiplier: v } })}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <NumberInput
+                label={`Optimal temp min (${tempUnit(displayUnits)})`}
+                value={toDisplayTemp(growthModel?.tempOptimalMin ?? 15, displayUnits)}
+                onChange={(v) => onChange({ growthModel: { ...growthModel, tempOptimalMin: toC(v) } })}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <NumberInput
+                label={`Optimal temp max (${tempUnit(displayUnits)})`}
+                value={toDisplayTemp(growthModel?.tempOptimalMax ?? 25, displayUnits)}
+                onChange={(v) => onChange({ growthModel: { ...growthModel, tempOptimalMax: toC(v) } })}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <NumberInput
+                label="Sun growth boost"
+                value={growthModel?.sunGrowthBoost}
+                onChange={(v) => onChange({ growthModel: { ...growthModel, sunGrowthBoost: v } })}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                select
+                label="Soil Type"
+                size="small"
+                fullWidth
                 value={growthModel?.soilType || 'loam'}
                 onChange={(e) => onChange({ growthModel: { ...growthModel, soilType: e.target.value } })}
               >
                 <option value="sand">Sand (fast drainage, low nutrients)</option>
                 <option value="loam">Loam (optimal balance)</option>
                 <option value="clay">Clay (slow drainage, good nutrients)</option>
-              </select>
-            </div>
-            <NumberInput
-              label="Latitude (degrees)"
-              value={growthModel?.latitude}
-              onChange={(v) => onChange({ growthModel: { ...growthModel, latitude: v } })}
-              hint="For seasonal dormancy (e.g., 40 = NY, 34 = LA)"
-            />
-          </div>
-        </div>
-      )}
+              </TextField>
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <NumberInput
+                label="Latitude (degrees)"
+                value={growthModel?.latitude}
+                onChange={(v) => onChange({ growthModel: { ...growthModel, latitude: v } })}
+                helperText="For seasonal dormancy (e.g., 40 = NY, 34 = LA)"
+              />
+            </Grid>
+          </Grid>
+        </Box>
+      </Collapse>
 
       {!advanced && (
-        <button
-          type="button"
+        <Button
+          size="small"
+          endIcon={<ExpandMoreOutlined />}
           onClick={() => setAdvanced(true)}
-          className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+          sx={{ textTransform: 'none' }}
         >
-          Show advanced growth model parameters →
-        </button>
+          Show advanced growth model parameters
+        </Button>
       )}
-    </div>
+    </Stack>
   );
 }
 
-function NumberInput({ label, value, onChange, hint }: { label: string; value: number; onChange: (v: number) => void; hint?: string }) {
+function NumberInput({ label, value, onChange, helperText }: { label: string; value: number; onChange: (v: number) => void; helperText?: string }) {
   return (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-      <input
-        type="number"
-        className="input"
-        value={parseFloat(value.toFixed(2))}
-        onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-        step="any"
-      />
-      {hint && <p className="text-xs text-gray-500 mt-1">{hint}</p>}
-    </div>
+    <TextField
+      type="number"
+      label={label}
+      size="small"
+      fullWidth
+      value={parseFloat(value.toFixed(2))}
+      onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+      slotProps={{ htmlInput: { step: 'any' } }}
+      helperText={helperText}
+    />
   );
 }
