@@ -84,8 +84,10 @@ function createApp(): express.Application {
 
   app.put('/api/config', (req, res) => {
     try {
-      configLoader.save({ ...config, ...req.body });
-      config = configLoader.load();
+      // Deep merge incoming config with existing to preserve nested objects
+      const merged = configLoader.deepMerge(config, req.body);
+      configLoader.save(merged);
+      config = configLoader.load(); // load() applies migrations + returns current version
       if (engine) engine.updateConfig(config);
       if (currentConfig) currentConfig = config;
       // Clear weather cache when config changes (rainfall unit/aggregation may have changed)

@@ -38,6 +38,12 @@ export class ConfigLoader {
     // Migrations: apply one-time config updates for schema changes
     merged = this.applyMigrations(merged, DEFAULT_CONFIG);
 
+    // Persist the migration version back to DB (fixes BUG 6)
+    const version = merged['configVersion'] as number | undefined;
+    if (version !== undefined) {
+      this.update('configVersion', version);
+    }
+
     // Validate against schema
     return AppConfigSchema.parse(merged);
   }
@@ -71,6 +77,30 @@ export class ConfigLoader {
     // Save version
     config[versionKey] = currentVersion;
     return config;
+  }
+
+  /**
+   * Deep merge: recursively merge source into target, preferring source values.
+   * Used by the PUT config endpoint to safely update nested objects.
+   */
+  public deepMerge<T extends Record<string, unknown>>(target: T, source: Partial<T>): T {
+    const result: Record<string, unknown> = { ...target };
+    for (const [key, value] of Object.entries(source)) {
+      if (value === undefined || value === null) continue;
+      const targetValue = result[key];
+      if (
+        typeof value === 'object' && !Array.isArray(value) && value !== null &&
+        typeof targetValue === 'object' && !Array.isArray(targetValue) && targetValue !== null
+      ) {
+        result[key] = this.deepMerge(
+          targetValue as Record<string, unknown>,
+          value as Partial<Record<string, unknown>>,
+        );
+      } else {
+        result[key] = value;
+      }
+    }
+    return result as T;
   }
 
   // Save full config to DB

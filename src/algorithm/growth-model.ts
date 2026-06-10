@@ -106,16 +106,22 @@ export class GrowthModel {
     const soilFactor = this.calculateSoilFactor(soilType);
 
     // Current moisture factor (computed once, passed in from caller)
+    // If no tracker value available, fall back to wilting point (conservative = drought).
+    // Previously defaulted to field capacity (optimal), which overestimated growth.
     const currentMoistureFactor = this.moistureFactorFromVWC(
-      currentSoilMoisturePct ?? growthModel.soilType,
+      currentSoilMoisturePct ?? (() => {
+        const { fc, wp } = this.getSoilMoistureBounds(growthModel.soilType);
+        return wp; // wilting point = conservative drought estimate
+      })(),
     );
 
-    // Pre-pass: compute average temperature from valid readings.
-    // 0°C in hourly buckets comes from uninitialized merge slots in the weather service,
-    // not from actual sensors. Filter these out to get a clean average.
-    const validTemps = hourlyWeather.filter(
-      (h) => h.temperature_c >= -10 && (h.temperature_c >= 1 || h.temperature_c <= -2),
-    );
+    // Pre-pass: compute average temperature from buckets that have real sensor data.
+    // Uninitialized hourly buckets are filled with all zeros (temp=0, rain=0, sun=0).
+    // Checking whether ANY field is non-zero distinguishes real data from blanks,
+    // and avoids excluding legitimate cold readings (-2C to 1C) in winter.
+    const hasRealData = (h: HourlyWeather) =>
+      h.temperature_c > 0 || h.temperature_c < -1 || h.rainfall_mm > 0 || h.sunshine_hours > 0;
+    const validTemps = hourlyWeather.filter(hasRealData);
     const avgTemp = validTemps.length > 0
       ? validTemps.reduce((sum, h) => sum + h.temperature_c, 0) / validTemps.length
       : optT;
@@ -128,8 +134,8 @@ export class GrowthModel {
     const gpFactorDaily = this.calculateGPFactor(avgTemp);
 
     for (const hour of hourlyWeather) {
-      // Track temperature stats (use corrected values)
-      const temp = hour.temperature_c < -10 || (hour.temperature_c < 1 && hour.temperature_c > -2)
+      // Track temperature stats (replace blank-bucket values with avg)
+      const temp = (hour.temperature_c >= -1 && hour.temperature_c <= 0 && hour.rainfall_mm === 0 && hour.sunshine_hours === 0)
         ? avgTemp : hour.temperature_c;
       sumTemp += temp;
       if (temp < minTemp) minTemp = temp;

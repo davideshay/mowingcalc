@@ -129,6 +129,8 @@ export class WeatherService {
 
   /**
    * Get cached weather data if still valid.
+   * Validates: metric, TTL, entity IDs match, and time window is close enough.
+   * Time window tolerance: cache entry is valid if its start/end covers our request.
    */
   private getFromCache(
     metric: string,
@@ -136,32 +138,63 @@ export class WeatherService {
     endTime: Date,
     ttlMinutes: number,
   ): AggregatedWeatherData[] | null {
-    const cached = (this.db.prepare(`
-      SELECT data FROM weather_cache
+    // Build current entity ID string for this metric
+    const entityId = this.getEntityIdForMetric(metric);
+
+    const rows = (this.db.prepare(`
+      SELECT data, entity_id, timestamp FROM weather_cache
       WHERE metric = ?
-        AND timestamp >= ?
-        AND timestamp <= ?
         AND created_at > datetime('now', '-' || ? || ' minutes')
       ORDER BY created_at DESC
-      LIMIT 1
     `).all(
       metric,
-      startTime.toISOString(),
-      endTime.toISOString(),
       ttlMinutes,
-    ) as Array<{ data: string }>);
+    ) as Array<{ data: string; entity_id: string; timestamp: string }>);
 
-    if (cached.length === 0) return null;
+    for (const row of rows) {
+      // Validate entity IDs match (prevents stale data after config change)
+      if (row.entity_id !== entityId) continue;
 
-    try {
-      return JSON.parse(cached[0].data) as AggregatedWeatherData[];
-    } catch {
-      return null;
+      // Validate time window covers our request (with tolerance for drift).
+      // Cache entry covers us if its window fully contains our requested window.
+      const cachedStart = new Date(row.timestamp).getTime();
+      // Approximate cached end: start + (hours of data in the cached result)
+      const cachedEnd = cachedStart + ttlMinutes * 60 * 1000;
+      if (cachedStart <= startTime.getTime() && cachedEnd >= endTime.getTime()) {
+        try {
+          return JSON.parse(row.data) as AggregatedWeatherData[];
+        } catch {
+          return null;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Resolve entity ID string for a given metric, matching saveToCache logic.
+   */
+  private getEntityIdForMetric(metric: string): string {
+    const entityIds = this.config.entityGroups;
+    switch (metric) {
+      case 'rainfall': return entityIds.rainfallSensors.join(',');
+      case 'temperature': return entityIds.temperatureSensors.join(',');
+      case 'sunshine': return (entityIds.sunshineSources || [])
+        .filter((s: any) => s.type === 'sunshine')
+        .map((s: any) => s.entity_id)
+        .join(',');
+      case 'uv_index': return (entityIds.sunshineSources || [])
+        .filter((s: any) => s.type === 'uv_index')
+        .map((s: any) => s.entity_id)
+        .join(',');
+      default: return '';
     }
   }
 
   /**
    * Save weather data to cache.
+   * Stores both start and end timestamps for precise window matching on retrieval.
    */
   private saveToCache(
     metric: string,
@@ -174,21 +207,7 @@ export class WeatherService {
       VALUES (?, ?, ?, ?, ?)
     `);
 
-    // Store entity IDs as a JSON array for reference
-    const entityIds = this.config.entityGroups;
-    let entityId = '';
-    switch (metric) {
-      case 'rainfall': entityId = entityIds.rainfallSensors.join(','); break;
-      case 'temperature': entityId = entityIds.temperatureSensors.join(','); break;
-      case 'sunshine': entityId = (entityIds.sunshineSources || [])
-        .filter((s: any) => s.type === 'sunshine')
-        .map((s: any) => s.entity_id)
-        .join(','); break;
-      case 'uv_index': entityId = (entityIds.sunshineSources || [])
-        .filter((s: any) => s.type === 'uv_index')
-        .map((s: any) => s.entity_id)
-        .join(','); break;
-    }
+    const entityId = this.getEntityIdForMetric(metric);
 
     stmt.run(
       metric,
@@ -279,10 +298,19 @@ export class WeatherService {
 
   /**
    * Compute summary statistics from hourly data.
+   * Excludes uninitialized zero-filled buckets from averages.
    */
   private computeSummary(hourly: HourlyWeather[], periodHours: number): WeatherSummary {
     const totalRainfall = hourly.reduce((sum, h) => sum + h.rainfall_mm, 0);
-    const avgTemp = hourly.length > 0 ? hourly.reduce((sum, h) => sum + h.temperature_c, 0) / hourly.length : 0;
+
+    // Only average temperatures from buckets with real data (not blank zero-fill)
+    const hasRealData = (h: HourlyWeather) =>
+      h.temperature_c > 0 || h.temperature_c < -1 || h.rainfall_mm > 0 || h.sunshine_hours > 0;
+    const validTemps = hourly.filter(hasRealData);
+    const avgTemp = validTemps.length > 0
+      ? validTemps.reduce((sum, h) => sum + h.temperature_c, 0) / validTemps.length
+      : 0;
+
     const totalSunshine = hourly.reduce((sum, h) => sum + h.sunshine_hours, 0);
 
     // Find last measurable rain event

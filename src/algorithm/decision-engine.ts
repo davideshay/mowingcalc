@@ -123,7 +123,7 @@ export class DecisionEngine {
 
     // Check 1: Not in mowing window -> wait
     if (!inMowingWindow) {
-      return this.noMow('Outside mowing time window', growth, rainDelay, params.lastMowTime, hoursSinceMow);
+      return this.noMow('Outside mowing time window', growth, rainDelay, params.lastMowTime, hoursSinceMow, forecastSafe);
     }
 
     // Check 2: Rain delay not satisfied -> wait
@@ -135,7 +135,7 @@ export class DecisionEngine {
       const remaining = Math.max(0, rainDelay.earliest_delay_hours - hoursSinceRain);
       return this.noMow(
         `Soil still too wet. ${remaining.toFixed(1)}h remaining before safe to mow`,
-        growth, rainDelay, params.lastMowTime, hoursSinceMow,
+        growth, rainDelay, params.lastMowTime, hoursSinceMow, forecastSafe,
       );
     }
 
@@ -144,7 +144,7 @@ export class DecisionEngine {
       const remaining = minTimeBetweenMows - hoursSinceMow;
       return this.noMow(
         `Too soon since last mow. ${remaining.toFixed(1)}h until minimum interval met`,
-        growth, rainDelay, params.lastMowTime, hoursSinceMow,
+        growth, rainDelay, params.lastMowTime, hoursSinceMow, forecastSafe,
       );
     }
 
@@ -157,7 +157,7 @@ export class DecisionEngine {
     if (growthMm < growthLowerLimit) {
       return this.noMow(
         `Growth estimate ${growthMm.toFixed(1)}mm below lower limit ${growthLowerLimit}mm`,
-        growth, rainDelay, params.lastMowTime, hoursSinceMow,
+        growth, rainDelay, params.lastMowTime, hoursSinceMow, forecastSafe,
       );
     }
 
@@ -184,7 +184,7 @@ export class DecisionEngine {
     if (growthMm >= growthLowerLimit && forecastSafe) {
       return this.noMow(
         `Growth ${growthMm.toFixed(1)}mm above lower limit but forecast is clear - will recheck`,
-        growth, rainDelay, params.lastMowTime, hoursSinceMow,
+        growth, rainDelay, params.lastMowTime, hoursSinceMow, forecastSafe,
       );
     }
 
@@ -195,7 +195,7 @@ export class DecisionEngine {
       );
     }
 
-    return this.noMow('Waiting for growth threshold', growth, rainDelay, params.lastMowTime, hoursSinceMow);
+    return this.noMow('Waiting for growth threshold', growth, rainDelay, params.lastMowTime, hoursSinceMow, params.forecastSafe);
   }
 
   private mow(reason: string, growth: GrowthResult, rainDelay: RainDelayResult, lastMow: Date | null, hoursSinceMow: number): DecisionResult {
@@ -211,7 +211,7 @@ export class DecisionEngine {
     };
   }
 
-  private noMow(reason: string, growth: GrowthResult, rainDelay: RainDelayResult, lastMow: Date | null, hoursSinceMow: number): DecisionResult {
+  private noMow(reason: string, growth: GrowthResult, rainDelay: RainDelayResult, lastMow: Date | null, hoursSinceMow: number, forecastSafe: boolean): DecisionResult {
     return {
       should_mow: false,
       reason,
@@ -220,7 +220,7 @@ export class DecisionEngine {
       last_mow_time: lastMow,
       hours_since_mow: hoursSinceMow,
       next_review_time: new Date(Date.now() + this.config.algorithmRunInterval * 60000),
-      forecast_safe: false,
+      forecast_safe: forecastSafe,
     };
   }
 

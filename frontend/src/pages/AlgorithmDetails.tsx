@@ -283,27 +283,13 @@ export function AlgorithmDetails() {
                    <div className="text-xs text-gray-500 mt-1">Optimal: {algo?.optimal_delay_hours?.toFixed(0)}h</div>
                  </>
                )}
-               {algo?.is_safe_to_mow && algo?.safe_to_mow_time && (
+               {algo?.is_safe_to_mow && details?.last_significant_rain && (
                   <>
-                    <div className="text-sm text-gray-600">Safe to mow since</div>
-                    {(() => {
-                      const safeSince = new Date(algo.safe_to_mow_time);
-                      const hoursAgo = (Date.now() - safeSince.getTime()) / 3600000;
-                      return (
-                        <>
-                          <div className="text-2xl font-bold text-green-700">
-                            {hoursAgo < 1
-                              ? `${Math.round(hoursAgo * 60)}m ago`
-                              : hoursAgo < 24
-                                ? `${hoursAgo.toFixed(1)}h ago`
-                                : `${(hoursAgo / 24).toFixed(1)}d ago`}
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1">
-                            {format(safeSince, 'EEE MMM d, h:mm a')}
-                          </div>
-                        </>
-                      );
-                    })()}
+                    <div className="text-sm text-gray-600">Safe since</div>
+                    <div className="text-2xl font-bold text-green-700">Now</div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      Rain {hoursAgo(details.last_significant_rain)} ({formatTimestamp(details.last_significant_rain)})
+                    </div>
                   </>
                 )}
                {algo?.is_safe_to_mow && !details?.last_significant_rain && (

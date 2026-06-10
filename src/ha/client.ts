@@ -296,12 +296,21 @@ export class HAClient {
 
       if (stateClass === 'total_increasing') {
         // Cumulative sensor (e.g., rainfall) - compute period deltas from sum
+        // Check unit_of_measurement to handle imperial cumulative sensors
+        const unit = stats[0].metadata.unit_of_measurement || '';
+        const isImperial = unit.includes('in') || unit.includes('"');
+
         for (let i = 1; i < stats.length; i++) {
           const prevSum = stats[i - 1].sum;
           const currSum = stats[i].sum;
           if (prevSum == null || currSum == null) continue;
 
-          const delta = currSum - prevSum;
+          let delta = currSum - prevSum;
+          // Convert imperial to mm if needed
+          if (isImperial) {
+            delta = delta * 25.4;
+          }
+
           const bucketTime = new Date(stats[i].start).getTime();
           const bucketKey = Math.floor(bucketTime / aggregationIntervalMs) * aggregationIntervalMs;
 

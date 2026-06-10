@@ -90,7 +90,7 @@ export class RainDelayModel {
     const effectiveDelay = Math.min(maxDelay, Math.max(minDelay, timeToSafe));
     const optimalDelay = Math.min(maxDelay, Math.max(minDelay * 1.25, timeToOptimal));
 
-    const isSafe = currentMoisture <= safeMoistureThreshold;
+    const isSafe = currentMoisture <= safeMoistureThreshold && hoursSinceRain >= minDelay;
     const safeToMowTime = isSafe ? null : new Date(Date.now() + effectiveDelay * 3600000);
 
     return {
@@ -136,16 +136,26 @@ export class RainDelayModel {
     hourlyWeather: HourlyWeather[],
   ): { timestamp: Date; total_mm: number } | null {
     const reversed = [...hourlyWeather].reverse();
-    let totalMm = 0;
     let lastTimestamp: Date | null = null;
+    let lastEventMm = 0;
+    let inRainEvent = false;
     const lookbackHours = Math.min(168, reversed.length);
 
     for (let i = 0; i < lookbackHours; i++) {
       if (reversed[i].rainfall_mm > 0.1) {
-        totalMm += reversed[i].rainfall_mm;
+        if (!inRainEvent) {
+          // Start of a new rain event (going backwards in time)
+          inRainEvent = true;
+          lastEventMm = 0;
+        }
+        lastEventMm += reversed[i].rainfall_mm;
         if (lastTimestamp === null || reversed[i].timestamp > lastTimestamp) {
           lastTimestamp = reversed[i].timestamp;
         }
+      } else {
+        // Gap in rain - this event is done
+        if (lastTimestamp !== null) break;
+        inRainEvent = false;
       }
     }
 
@@ -153,7 +163,7 @@ export class RainDelayModel {
 
     const rounded = new Date(lastTimestamp);
     rounded.setUTCMinutes(0, 0, 0);
-    return { timestamp: rounded, total_mm: totalMm };
+    return { timestamp: rounded, total_mm: lastEventMm };
   }
 
   private classifyRainIntensity(

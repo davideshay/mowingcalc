@@ -316,6 +316,8 @@ export class SoilMoistureTracker {
   }
 
   private clampMoisture(moisture: number, fc: number): number {
-    return Math.max(5, Math.min(fc + 20, moisture));
+    // Floor at wilting point - soil cannot physically release water below this
+    const wp = this.wiltingPoint();
+    return Math.max(wp, Math.min(fc + 20, moisture));
   }
 }
