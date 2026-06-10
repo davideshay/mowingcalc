@@ -21,6 +21,7 @@ import {
   TableHead,
   TableRow,
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 
 function conditionIcon(condition: string, isDaytime?: boolean) {
   const map: Record<string, string> = {
@@ -96,8 +97,11 @@ export function AlgorithmDetails() {
 
   const upperLimit = config?.growthUpperLimit ?? 6;
   const lowerLimit = config?.growthLowerLimit ?? 3;
-  const growthValue = Math.min(100, ((algo?.growth_mm ?? 0) / upperLimit) * 100);
-  const lowerPct = Math.min(100, (lowerLimit / upperLimit) * 100);
+  // Growth scale: 0 to ~12mm (0.5in) for a meaningful visual range
+  const growthScaleMax = units === 'imperial' ? 0.5 * 25.4 : 12; // mm
+  const growthValue = Math.min(100, ((algo?.growth_mm ?? 0) / growthScaleMax) * 100);
+  const lowerPct = Math.min(100, (lowerLimit / growthScaleMax) * 100);
+  const upperPct = Math.min(100, (upperLimit / growthScaleMax) * 100);
   const growthBarColor = algo?.growth_mm != null && algo.growth_mm >= upperLimit
     ? 'error.main'
     : algo?.growth_mm != null && algo.growth_mm >= lowerLimit
@@ -105,7 +109,14 @@ export function AlgorithmDetails() {
       : 'action.disabledBackground';
 
   const safeThreshold = details?.safe_moisture_threshold ?? algo?.field_capacity_pct ?? 0;
-  const moistureValue = Math.min(100, (algo?.estimated_soil_moisture_pct || 0));
+  const fcPct = algo?.field_capacity_pct ?? 40;
+  // Moisture scale: 0% to FC+20% for meaningful visual context
+  const moistureScaleMax = fcPct + 20;
+  const moistureValue = Math.min(100, ((algo?.estimated_soil_moisture_pct || 0) / moistureScaleMax) * 100);
+  const fcMarkerPct = Math.min(100, (fcPct / moistureScaleMax) * 100);
+  const safeMarkerPct = safeThreshold > 0 ? Math.min(100, (safeThreshold / moistureScaleMax) * 100) : 0;
+  const optimalMarkerPct = details?.optimal_moisture_threshold != null && details.optimal_moisture_threshold > 0
+    ? Math.min(100, (details.optimal_moisture_threshold / moistureScaleMax) * 100) : 0;
   const moistureBarColor = algo?.estimated_soil_moisture_pct && algo.estimated_soil_moisture_pct > safeThreshold
     ? 'error.main'
     : 'success.main';
@@ -161,10 +172,10 @@ export function AlgorithmDetails() {
               <Box sx={{ mt: 2 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
                   <Typography variant="caption" color="text.disabled">
-                    Lower limit: {formatLength(lowerLimit, units)}
+                    0 {units === 'imperial' ? 'in' : 'mm'}
                   </Typography>
                   <Typography variant="caption" color="text.disabled">
-                    Upper limit: {formatLength(upperLimit, units)}
+                    {formatLength(growthScaleMax, units)}
                   </Typography>
                 </Box>
                 <Box sx={{ position: 'relative' }}>
@@ -188,7 +199,7 @@ export function AlgorithmDetails() {
                       top: 0,
                       bottom: 0,
                       left: `${lowerPct}%`,
-                      width: 1,
+                      width: 2,
                       bgcolor: 'primary.main',
                       zIndex: 10,
                     }}
@@ -200,26 +211,43 @@ export function AlgorithmDetails() {
                       position: 'absolute',
                       top: 0,
                       bottom: 0,
-                      right: 0,
-                      width: 1,
+                      left: `${upperPct}%`,
+                      width: 2,
                       bgcolor: 'error.main',
                       zIndex: 10,
                     }}
                     title={`Upper limit: ${formatLength(upperLimit, units)}`}
                   />
+                  {/* Current value dot */}
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: '50%',
+                      left: `${growthValue}%`,
+                      transform: 'translate(-50%, -50%)',
+                      width: 16,
+                      height: 16,
+                      borderRadius: '50%',
+                      bgcolor: growthBarColor,
+                      border: '2px solid white',
+                      zIndex: 20,
+                      boxShadow: 1,
+                    }}
+                    title={`Current: ${formatLength(algo?.growth_mm ?? 0, units)}`}
+                  />
                 </Box>
                 {/* Legend */}
                 <Box sx={{ display: 'flex', gap: 2, mt: 0.5 }}>
                   <Typography variant="caption" color="text.disabled" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'primary.main' }} />
+                    <Box sx={{ width: 8, height: 2, bgcolor: 'primary.main' }} />
                     Lower: {formatLength(lowerLimit, units)}
                   </Typography>
                   <Typography variant="caption" color="text.disabled" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'error.main' }} />
+                    <Box sx={{ width: 8, height: 2, bgcolor: 'error.main' }} />
                     Upper: {formatLength(upperLimit, units)}
                   </Typography>
                   <Typography variant="caption" color="text.disabled" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'action.disabledBackground' }} />
+                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: growthBarColor, border: '1px solid white' }} />
                     Current: {formatLength(algo?.growth_mm ?? 0, units)}
                   </Typography>
                 </Box>
@@ -392,27 +420,13 @@ export function AlgorithmDetails() {
                       <Typography variant="caption" color="text.disabled">Optimal: {algo?.optimal_delay_hours?.toFixed(0)}h</Typography>
                     </>
                   )}
-                  {algo?.is_safe_to_mow && algo?.safe_to_mow_time && (
+                  {algo?.is_safe_to_mow && details?.last_significant_rain && (
                     <>
-                      <Typography variant="body2" color="text.secondary">Safe to mow since</Typography>
-                      {(() => {
-                        const safeSince = new Date(algo.safe_to_mow_time);
-                        const hoursAgo = (Date.now() - safeSince.getTime()) / 3600000;
-                        return (
-                          <>
-                            <Typography variant="h5" sx={{ color: 'success.main' }}>
-                              {hoursAgo < 1
-                                ? `${Math.round(hoursAgo * 60)}m ago`
-                                : hoursAgo < 24
-                                  ? `${hoursAgo.toFixed(1)}h ago`
-                                  : `${(hoursAgo / 24).toFixed(1)}d ago`}
-                            </Typography>
-                            <Typography variant="caption" color="text.disabled">
-                              {format(safeSince, 'EEE MMM d, h:mm a')}
-                            </Typography>
-                          </>
-                        );
-                      })()}
+                      <Typography variant="body2" color="text.secondary">Safe since</Typography>
+                      <Typography variant="h5" sx={{ color: 'success.main' }}>Now</Typography>
+                      <Typography variant="caption" color="text.disabled">
+                        Rain {hoursAgo(details.last_significant_rain)} ({formatTimestamp(details.last_significant_rain)})
+                      </Typography>
                     </>
                   )}
                   {algo?.is_safe_to_mow && !details?.last_significant_rain && (
@@ -425,10 +439,10 @@ export function AlgorithmDetails() {
               <Box sx={{ mt: 2 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
                   <Typography variant="caption" color="text.disabled">
-                    Current: {algo?.estimated_soil_moisture_pct?.toFixed(0)}%
+                    0%
                   </Typography>
                   <Typography variant="caption" color="text.disabled">
-                    Field capacity: {algo?.field_capacity_pct}%
+                    {moistureScaleMax}% ({fcPct}% + 20%)
                   </Typography>
                 </Box>
                 <Box sx={{ position: 'relative' }}>
@@ -445,19 +459,32 @@ export function AlgorithmDetails() {
                       },
                     }}
                   />
-                  {/* Safe threshold marker (for robot mowers, above FC) */}
-                  {details?.safe_moisture_threshold != null && details.safe_moisture_threshold > 0 && (
+                  {/* FC marker */}
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: 0,
+                      bottom: 0,
+                      left: `${fcMarkerPct}%`,
+                      width: 2,
+                      bgcolor: 'warning.main',
+                      zIndex: 10,
+                    }}
+                    title={`Field capacity: ${fcPct}%`}
+                  />
+                  {/* Safe threshold marker */}
+                  {safeThreshold > 0 && (
                     <Box
                       sx={{
                         position: 'absolute',
                         top: 0,
                         bottom: 0,
-                        left: `${Math.min(100, details.safe_moisture_threshold)}%`,
-                        width: 1,
-                        bgcolor: 'success.main',
+                        left: `${safeMarkerPct}%`,
+                        width: 2,
+                        bgcolor: 'error.main',
                         zIndex: 10,
                       }}
-                      title={`Safe threshold: ${details.safe_moisture_threshold.toFixed(0)}%`}
+                      title={`Safe threshold: ${safeThreshold.toFixed(0)}%`}
                     />
                   )}
                   {/* Optimal threshold marker */}
@@ -467,28 +494,49 @@ export function AlgorithmDetails() {
                         position: 'absolute',
                         top: 0,
                         bottom: 0,
-                        left: `${Math.min(100, details.optimal_moisture_threshold)}%`,
-                        width: 1,
+                        left: `${optimalMarkerPct}%`,
+                        width: 2,
                         bgcolor: 'primary.main',
                         zIndex: 10,
                       }}
                       title={`Optimal threshold: ${details.optimal_moisture_threshold.toFixed(0)}%`}
                     />
                   )}
+                  {/* Current value dot */}
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: '50%',
+                      left: `${moistureValue}%`,
+                      transform: 'translate(-50%, -50%)',
+                      width: 16,
+                      height: 16,
+                      borderRadius: '50%',
+                      bgcolor: moistureBarColor,
+                      border: '2px solid white',
+                      zIndex: 20,
+                      boxShadow: 1,
+                    }}
+                    title={`Current moisture: ${algo?.estimated_soil_moisture_pct?.toFixed(0)}%`}
+                  />
                 </Box>
                 {/* Threshold legend */}
                 <Box sx={{ display: 'flex', gap: 2, mt: 0.5 }}>
                   <Typography variant="caption" color="text.disabled" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontSize: '0.625rem' }}>
-                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'primary.main' }} />
+                    <Box sx={{ width: 8, height: 2, bgcolor: 'warning.main' }} />
+                    FC: {fcPct}%
+                  </Typography>
+                  <Typography variant="caption" color="text.disabled" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontSize: '0.625rem' }}>
+                    <Box sx={{ width: 8, height: 2, bgcolor: 'error.main' }} />
+                    Safe: {safeThreshold.toFixed(0)}%
+                  </Typography>
+                  <Typography variant="caption" color="text.disabled" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontSize: '0.625rem' }}>
+                    <Box sx={{ width: 8, height: 2, bgcolor: 'primary.main' }} />
                     Optimal: {details?.optimal_moisture_threshold?.toFixed(0)}%
                   </Typography>
                   <Typography variant="caption" color="text.disabled" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontSize: '0.625rem' }}>
-                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'success.main' }} />
-                    Safe: {details?.safe_moisture_threshold?.toFixed(0)}%
-                  </Typography>
-                  <Typography variant="caption" color="text.disabled" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontSize: '0.625rem' }}>
-                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'action.disabledBackground' }} />
-                    FC: {algo?.field_capacity_pct}%
+                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: moistureBarColor, border: '1px solid white' }} />
+                    Current: {algo?.estimated_soil_moisture_pct?.toFixed(0)}%
                   </Typography>
                 </Box>
               </Box>
@@ -757,7 +805,7 @@ export function AlgorithmDetails() {
                                   textAlign: 'center',
                                   minWidth: '56px',
                                   width: '56px',
-                                  ...(precipHigh ? { bgcolor: 'error.hover', border: '2px solid', borderColor: 'error.light' } : {}),
+                                  ...(precipHigh ? { bgcolor: alpha('#ef4444', 0.08), border: '2px solid', borderColor: 'error.light' } : {}),
                                 }}
                                 title={tip}
                               >
@@ -839,7 +887,7 @@ export function AlgorithmDetails() {
                         sx={{
                           borderBottom: 1,
                           borderColor: 'divider',
-                          ...(precipHigh ? { bgcolor: 'error.hover' } : {}),
+                          ...(precipHigh ? { bgcolor: alpha('#ef4444', 0.08) } : {}),
                         }}
                       >
                         <TableCell sx={{ whiteSpace: 'nowrap' }}>{format(date, 'EEE, MMM d')}</TableCell>

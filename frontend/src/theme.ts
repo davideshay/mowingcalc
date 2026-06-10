@@ -195,9 +195,47 @@ const theme = createTheme({
     },
     MuiDrawer: {
       styleOverrides: {
-        paper: ({ theme }) => ({
-          borderRight: `1px solid ${theme.palette.divider}`,
-        }),
+        paper: {
+          borderRight: '1px solid',
+          borderColor: 'divider',
+          backgroundColor: 'background.paper',
+        },
+      },
+    },
+    MuiListItemButton: {
+      styleOverrides: {
+        root: {
+          '&.Mui-selected': {
+            backgroundColor: 'primary.light',
+            '&:hover': {
+              backgroundColor: 'primary.main',
+            },
+            '& .MuiTypography-root, & .MuiListItemIcon-root': {
+              color: 'primary.main',
+            },
+          },
+          '&:hover': {
+            backgroundColor: 'action.hover',
+          },
+          '& .MuiTypography-root': {
+            color: 'text.primary',
+            fontWeight: 500,
+          },
+          '& .MuiListItemIcon-root': {
+            color: 'text.secondary',
+          },
+          // Reset <a> element colors from react-router-dom
+          '& a': {
+            color: 'inherit',
+            textDecoration: 'none',
+          },
+          '& a .MuiTypography-root': {
+            color: 'text.primary',
+          },
+          '& a.Mui-selected .MuiTypography-root': {
+            color: 'primary.main',
+          },
+        },
       },
     },
     MuiTabs: {

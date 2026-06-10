@@ -190,7 +190,7 @@ export class SoilMoistureTracker {
       moisture = thetaRes + (moisture - thetaRes) * Math.exp(-dt / tau);
 
       // Add rain for this hour
-      if (hour.rainfall_mm > 0.1) {
+      if (hour.rainfall_mm > 0) {
         moisture += hour.rainfall_mm * 0.5;
         totalRain += hour.rainfall_mm;
         lastRainTs = hour.timestamp.toISOString();
@@ -229,7 +229,7 @@ export class SoilMoistureTracker {
   private rainAfter(hourlyWeather: HourlyWeather[], afterTimestamp: Date): number {
     let total = 0;
     for (const h of hourlyWeather) {
-      if (h.timestamp > afterTimestamp && h.rainfall_mm > 0.1) {
+      if (h.timestamp > afterTimestamp && h.rainfall_mm > 0) {
         total += h.rainfall_mm;
       }
     }
@@ -245,7 +245,7 @@ export class SoilMoistureTracker {
   ): string {
     let latest: Date | null = null;
     for (const h of hourlyWeather) {
-      if (h.timestamp > afterTimestamp && h.rainfall_mm > 0.1) {
+      if (h.timestamp > afterTimestamp && h.rainfall_mm > 0) {
         if (latest === null || h.timestamp > latest) {
           latest = h.timestamp;
         }

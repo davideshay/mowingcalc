@@ -99,104 +99,112 @@ export function Dashboard() {
       <Grid container spacing={2}>
         {/* Growth estimate */}
         <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
-          <Card>
-            <CardContent>
+          <Card sx={{ height: '100%' }}>
+            <CardContent sx={{ display: 'flex', flexDirection: 'column', height: '100%', boxSizing: 'border-box' }}>
               <Typography variant="body2" color="text.secondary" gutterBottom>
                 Growth Since Last Mow
               </Typography>
-              <Typography variant="h3" component="div">
-                {toDisplayLength(algo?.growth_mm ?? 0, units).toFixed(1)}
-                <Typography component="span" variant="h4" color="text.secondary" sx={{ ml: 0.5 }}>
-                  {unit}
+              <Box sx={{ mt: 'auto' }}>
+                <Typography variant="h3" component="div">
+                  {toDisplayLength(algo?.growth_mm ?? 0, units).toFixed(1)}
+                  <Typography component="span" variant="h4" color="text.secondary" sx={{ ml: 0.5 }}>
+                    {unit}
+                  </Typography>
                 </Typography>
-              </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                Daily rate: {toDisplayLength(algo?.daily_growth_mm ?? 0, units).toFixed(2)} {unit}/day
-              </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                  Daily rate: {toDisplayLength(algo?.daily_growth_mm ?? 0, units).toFixed(2)} {unit}/day
+                </Typography>
+              </Box>
             </CardContent>
           </Card>
         </Grid>
 
         {/* Rain delay */}
         <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
-          <Card>
-            <CardContent>
+          <Card sx={{ height: '100%' }}>
+            <CardContent sx={{ display: 'flex', flexDirection: 'column', height: '100%', boxSizing: 'border-box' }}>
               <Typography variant="body2" color="text.secondary" gutterBottom>
                 Rain Delay
               </Typography>
-              <Typography variant="h4" component="div">
-                {algo?.is_safe_to_mow ? (
-                  <Chip label="Safe" color="success" size="small" />
-                ) : (
-                  <>
-                    {algo?.rain_delay_hours?.toFixed(0)}
-                    <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 0.5 }}>
-                      hours
-                    </Typography>
-                  </>
-                )}
-              </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                {algo?.is_safe_to_mow
-                  ? 'Soil moisture OK'
-                  : algo?.rain_delay_details?.last_significant_rain
-                    ? `Rain ${hoursAgo(algo.rain_delay_details.last_significant_rain)} (${formatLength(algo.rain_delay_details.last_rain_mm, units)})`
-                    : 'Wait for drying'}
-              </Typography>
-              {!algo?.is_safe_to_mow && algo?.rain_delay_details?.last_significant_rain && (
-                <Typography variant="caption" color="warning.main" sx={{ mt: 0.5, display: 'block' }}>
-                  Safe at {format(new Date(Date.now() + (algo.rain_delay_hours || 0) * 3600000), 'h:mm a')}
+              <Box sx={{ mt: 'auto' }}>
+                <Typography variant="h4" component="div">
+                  {algo?.is_safe_to_mow ? (
+                    <Chip label="Safe" color="success" size="small" />
+                  ) : (
+                    <>
+                      {algo?.rain_delay_hours?.toFixed(0)}
+                      <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 0.5 }}>
+                        hours
+                      </Typography>
+                    </>
+                  )}
                 </Typography>
-              )}
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                  {algo?.is_safe_to_mow
+                    ? 'Soil moisture OK'
+                    : algo?.rain_delay_details?.last_significant_rain
+                      ? `Rain ${hoursAgo(algo.rain_delay_details.last_significant_rain)} (${formatLength(algo.rain_delay_details.last_rain_mm, units)})`
+                      : 'Wait for drying'}
+                </Typography>
+                {!algo?.is_safe_to_mow && algo?.rain_delay_details?.last_significant_rain && (
+                  <Typography variant="caption" color="warning.main" sx={{ mt: 0.5, display: 'block' }}>
+                    Safe at {format(new Date(Date.now() + (algo.rain_delay_hours || 0) * 3600000), 'h:mm a')}
+                  </Typography>
+                )}
+              </Box>
             </CardContent>
           </Card>
         </Grid>
 
         {/* Hours since mow */}
         <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
-          <Card>
-            <CardContent>
+          <Card sx={{ height: '100%' }}>
+            <CardContent sx={{ display: 'flex', flexDirection: 'column', height: '100%', boxSizing: 'border-box' }}>
               <Typography variant="body2" color="text.secondary" gutterBottom>
                 Hours Since Last Mow
               </Typography>
-              <Typography variant="h4" component="div">
-                {algo?.hours_since_mow?.toFixed(0)}
-                <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 0.5 }}>
-                  h
+              <Box sx={{ mt: 'auto' }}>
+                <Typography variant="h4" component="div">
+                  {algo?.hours_since_mow?.toFixed(0)}
+                  <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 0.5 }}>
+                    h
+                  </Typography>
                 </Typography>
-              </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                {algo?.last_mow_time ? (
-                  <>Last: {formatDistanceToNow(new Date(algo.last_mow_time), { addSuffix: true })}</>
-                ) : (
-                  'No previous mow recorded'
-                )}
-              </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                  {algo?.last_mow_time ? (
+                    <>Last: {formatDistanceToNow(new Date(algo.last_mow_time), { addSuffix: true })}</>
+                  ) : (
+                    'No previous mow recorded'
+                  )}
+                </Typography>
+              </Box>
             </CardContent>
           </Card>
         </Grid>
 
         {/* Mower status */}
         <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
-          <Card>
-            <CardContent>
+          <Card sx={{ height: '100%' }}>
+            <CardContent sx={{ display: 'flex', flexDirection: 'column', height: '100%', boxSizing: 'border-box' }}>
               <Typography variant="body2" color="text.secondary" gutterBottom>
                 Mower Status
               </Typography>
-              <Typography variant="h4" component="div">
-                {mower?.available ? (
-                  <Chip
-                    label={mower.state?.replace('_', ' ') || 'Unknown'}
-                    color={mower.state === 'mowing' ? 'success' : 'default'}
-                    size="small"
-                  />
-                ) : (
-                  <Chip label="Unavailable" color="warning" size="small" />
-                )}
-              </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                {mower?.battery_pct !== undefined && `Battery: ${mower.battery_pct}%`}
-              </Typography>
+              <Box sx={{ mt: 'auto' }}>
+                <Typography variant="h4" component="div">
+                  {mower?.available ? (
+                    <Chip
+                      label={mower.state?.replace('_', ' ') || 'Unknown'}
+                      color={mower.state === 'mowing' ? 'success' : 'default'}
+                      size="small"
+                    />
+                  ) : (
+                    <Chip label="Unavailable" color="warning" size="small" />
+                  )}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                  {mower?.battery_pct !== undefined && `Battery: ${mower.battery_pct}%`}
+                </Typography>
+              </Box>
             </CardContent>
           </Card>
         </Grid>

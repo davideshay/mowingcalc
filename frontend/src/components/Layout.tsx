@@ -74,7 +74,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <ListItem key={item.path} disablePadding sx={{ display: 'block', mb: 0.5 }}>
               <Link
                 to={item.path}
-                style={{ textDecoration: 'none', display: 'contents' }}
+                style={{ textDecoration: 'none', display: 'contents', color: 'inherit' }}
                 onClick={() => !isDesktop && setMobileOpen(false)}
               >
                 <ListItemButton selected={isActive}>

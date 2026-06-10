@@ -66,7 +66,7 @@ export function WeatherSummary() {
           {/* Sunshine */}
           <Grid size={{ xs: 6, md: 3 }}>
             <Box sx={{ textAlign: 'center', bgcolor: 'action.hover', p: 2, borderRadius: 2 }}>
-              <Typography variant="h4" sx={{ mb: 0.5 }}>\u2600\uFE0F</Typography>
+              <Typography variant="h4" sx={{ mb: 0.5 }}>{'\u2600\uFE0F'}</Typography>
               <Typography variant="body2" color="text.secondary">Sunshine (7d)</Typography>
               <Typography variant="h6">
                 {weather ? `${weather.total_sunshine_hours.toFixed(0)}h` : '--h'}

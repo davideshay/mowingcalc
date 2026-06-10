@@ -142,7 +142,7 @@ export class RainDelayModel {
     const lookbackHours = Math.min(168, reversed.length);
 
     for (let i = 0; i < lookbackHours; i++) {
-      if (reversed[i].rainfall_mm > 0.1) {
+      if (reversed[i].rainfall_mm > 0) {
         if (!inRainEvent) {
           // Start of a new rain event (going backwards in time)
           inRainEvent = true;
@@ -153,8 +153,8 @@ export class RainDelayModel {
           lastTimestamp = reversed[i].timestamp;
         }
       } else {
-        // Gap in rain - this event is done
-        if (lastTimestamp !== null) break;
+        // Dry hour — if we were in a rain event, we've found the most recent one
+        if (inRainEvent) break;
         inRainEvent = false;
       }
     }

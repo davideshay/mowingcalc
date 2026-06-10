@@ -316,11 +316,20 @@ export class WeatherService {
     // Find last measurable rain event
     let lastRainTs: string | null = null;
     let lastRainMm = 0;
+    let inRainEvent = false;
     for (let i = hourly.length - 1; i >= 0; i--) {
-      if (hourly[i].rainfall_mm > 0.1) {
-        lastRainTs = hourly[i].timestamp.toISOString();
-        lastRainMm = hourly[i].rainfall_mm;
-        break;
+      if (hourly[i].rainfall_mm > 0) {
+        if (!inRainEvent) {
+          inRainEvent = true;
+          lastRainMm = 0;
+        }
+        lastRainMm += hourly[i].rainfall_mm;
+        if (lastRainTs === null || hourly[i].timestamp > new Date(lastRainTs)) {
+          lastRainTs = hourly[i].timestamp.toISOString();
+        }
+      } else {
+        if (inRainEvent) break;
+        inRainEvent = false;
       }
     }
 

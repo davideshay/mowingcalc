@@ -225,14 +225,20 @@ export function Configuration() {
           </Card>
 
           {/* Read-Only Mode Toggle */}
-          <Card sx={{ bgcolor: draft.readonlyMode ? 'warning.light' : 'success.light', borderColor: draft.readonlyMode ? 'warning.main' : 'success.main', borderWidth: 1, borderStyle: 'solid' }}>
+          <Card sx={{
+          bgcolor: 'action.hover',
+          borderColor: draft.readonlyMode ? 'warning.main' : 'success.main',
+          borderWidth: 2,
+          borderStyle: 'solid',
+          borderRadius: 2,
+        }}>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
                 <Box>
                   <Typography variant="h6" sx={{ color: draft.readonlyMode ? 'warning.main' : 'success.main' }}>
                     {draft.readonlyMode ? '🔒 Read-Only Mode' : '🔓 Automatic Mower Control'}
                   </Typography>
-                  <Typography variant="body2" sx={{ color: draft.readonlyMode ? 'warning.main' : 'success.main', mt: 0.5 }}>
+                  <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
                     {draft.readonlyMode
                       ? 'All mower actions are blocked. The algorithm runs and monitors, but will not trigger the mower.'
                       : 'The algorithm can automatically start your mower. Review settings carefully before enabling.'}

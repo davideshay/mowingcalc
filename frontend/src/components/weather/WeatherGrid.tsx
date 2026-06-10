@@ -1,5 +1,6 @@
 import React from 'react';
 import { Box, Typography, Table, TableBody, TableCell, TableHead, TableRow } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import { toDisplayLength, toDisplayTemp, tempUnit, lengthUnit } from '../../utils/units';
 import type { DisplayUnits } from '../../utils/units';
 
@@ -75,6 +76,12 @@ function hourLabel(hr: number): string {
   return `${h}${hr >= 12 ? 'p' : 'a'}`;
 }
 
+function rainDecimalPlaces(units: DisplayUnits): number {
+  // Imperial rain amounts are tiny (0.001-0.100 in), need 3 places.
+  // Metric rain amounts are larger (0.1-25.0 mm), 1 place is sufficient.
+  return units === 'imperial' ? 3 : 1;
+}
+
 function cell(h: HourData | null, units: DisplayUnits) {
   if (!h) return (
     <TableCell align="center" sx={{ minWidth: '64px', width: '64px', py: 1, px: 0.5 }}>
@@ -88,9 +95,10 @@ function cell(h: HourData | null, units: DisplayUnits) {
   const isHeavy = h.rainfall_mm > 5;
   const lenU = lengthUnit(units);
   const tmpU = tempUnit(units);
+  const rainPlaces = rainDecimalPlaces(units);
   const localHr = localHour(h.timestamp);
   const timeLabel = localHr >= 12 ? `${localHr - 12 || 12}pm` : `${localHr}am`;
-  const tip = `${timeLabel} | Rain:${rain.toFixed(2)}${lenU}/h Temp:${Math.round(temp)}${tmpU} Sun:${(h.sunshine_hours * 100) | 0}%`;
+  const tip = `${timeLabel} | Rain:${rain.toFixed(rainPlaces)}${lenU}/h Temp:${Math.round(temp)}${tmpU} Sun:${(h.sunshine_hours * 100) | 0}%`;
 
   return (
     <TableCell
@@ -100,7 +108,11 @@ function cell(h: HourData | null, units: DisplayUnits) {
         width: '64px',
         py: 1,
         px: 0.5,
-        bgcolor: hasRain ? (isHeavy ? 'error.hover' : 'info.hover') : 'inherit',
+        ...(hasRain ? {
+          bgcolor: alpha('#ef4444', 0.08),
+          border: '2px solid',
+          borderColor: 'error.light',
+        } : {}),
       }}
       title={tip}
     >
@@ -130,9 +142,9 @@ function cell(h: HourData | null, units: DisplayUnits) {
               fontSize: '0.625rem',
               color: isHeavy ? 'error.main' : 'info.main',
             }}
-            title={`${rain.toFixed(2)}${lenU}/h rain`}
+            title={`${rain.toFixed(rainPlaces)}${lenU}/h rain`}
           >
-            {rain.toFixed(2)}{lenU}
+            {rain.toFixed(rainPlaces)}{lenU}
           </Typography>
         )}
       </Box>
@@ -195,16 +207,17 @@ export function WeatherGrid({ hourly, units }: Props) {
     const labelDate = new Date(dayKey + 'T12:00:00');
     const label = `${dayNames[labelDate.getDay()]} ${labelDate.getMonth() + 1}/${labelDate.getDate()}`;
 
-    // Only add day period if it has data
-    if (periodHasData(hours, 6, 17)) {
-      allRows.push({ key: `${dayKey}-day`, label, period: '6am-6pm', hours, start: 6, end: 17 });
-    }
-
+    // Night period first (more recent in reverse-chronological order)
     // Only add night period if it has data and it's not the current day during daytime
     if (dayKey !== todayKey || !isCurrentlyDay) {
       if (periodHasData(hours, 18, 5)) {
         allRows.push({ key: `${dayKey}-night`, label, period: '6pm-6am', hours, start: 18, end: 5 });
       }
+    }
+
+    // Day period second
+    if (periodHasData(hours, 6, 17)) {
+      allRows.push({ key: `${dayKey}-day`, label, period: '6am-6pm', hours, start: 6, end: 17 });
     }
   }
 
@@ -252,12 +265,8 @@ export function WeatherGrid({ hourly, units }: Props) {
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 1, px: 1 }}>
         <Typography variant="caption" color="text.disabled">Columns are 1-hour slots within the period</Typography>
         <Typography variant="caption">
-          <Box component="span" sx={{ display: 'inline-block', width: 12, height: 12, bgcolor: 'error.hover', border: '1px solid', borderColor: 'error.light', borderRadius: 0.5, mr: 0.5 }} />
-          Heavy rain
-        </Typography>
-        <Typography variant="caption">
-          <Box component="span" sx={{ display: 'inline-block', width: 12, height: 12, bgcolor: 'info.hover', border: '1px solid', borderColor: 'info.light', borderRadius: 0.5, mr: 0.5 }} />
-          Any rain
+          <Box component="span" sx={{ display: 'inline-block', width: 12, height: 12, bgcolor: alpha('#ef4444', 0.08), border: '1px solid', borderColor: 'error.light', borderRadius: 0.5, mr: 0.5 }} />
+          Rain
         </Typography>
       </Box>
     </Box>
