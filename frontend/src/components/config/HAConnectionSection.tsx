@@ -1,3 +1,9 @@
+import Box from '@mui/material/Box';
+import Stack from '@mui/material/Stack';
+import TextField from '@mui/material/TextField';
+import Typography from '@mui/material/Typography';
+import Alert from '@mui/material/Alert';
+
 interface Props {
   haUrl: string;
   haToken: string;
@@ -6,39 +12,42 @@ interface Props {
 
 export function HAConnectionSection({ haUrl, haToken, onChange }: Props) {
   return (
-    <div className="space-y-6">
-      {/* HA Connection */}
-      <div>
-        <h3 className="text-lg font-semibold mb-4">Home Assistant Connection</h3>
-        <div className="p-4 bg-blue-50 rounded-xl mb-4">
-          <p className="text-sm text-blue-800">
-            Enter your Home Assistant URL and API token. The token can be found in HA under
-            Profile → Create Token (Long-Lived Access Token).
-          </p>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">HA URL</label>
-            <input
+    <Stack spacing={4}>
+      <Box>
+        <Typography variant="h6" sx={{ mb: 2 }}>
+          Home Assistant Connection
+        </Typography>
+
+        <Alert severity="info" sx={{ mb: 3 }}>
+          Enter your Home Assistant URL and API token. The token can be found in HA under
+          Profile → Create Token (Long-Lived Access Token).
+        </Alert>
+
+        <Stack direction="row" spacing={2} useFlexGap sx={{ flexWrap: 'wrap' }}>
+          <Box sx={{ flex: '1 1 250px' }}>
+            <TextField
+              fullWidth
+              label="HA URL"
               type="url"
-              className="input"
               value={haUrl}
               onChange={(e) => onChange({ haUrl: e.target.value })}
               placeholder="http://homeassistant.local:8123"
+              size="small"
             />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">HA API Token</label>
-            <input
+          </Box>
+          <Box sx={{ flex: '1 1 250px' }}>
+            <TextField
+              fullWidth
+              label="HA API Token"
               type="password"
-              className="input"
               value={haToken}
               onChange={(e) => onChange({ haToken: e.target.value })}
               placeholder="eyJ0eXAi..."
+              size="small"
             />
-          </div>
-        </div>
-      </div>
-    </div>
+          </Box>
+        </Stack>
+      </Box>
+    </Stack>
   );
 }
