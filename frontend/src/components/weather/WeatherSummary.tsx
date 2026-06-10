@@ -1,3 +1,4 @@
+import { Card, CardContent, Typography, Box, Grid, CircularProgress } from '@mui/material';
 import { useWeatherHistory, useConfig } from '../../hooks/useApi';
 import { formatTemp, formatLength } from '../../utils/units';
 
@@ -9,10 +10,14 @@ export function WeatherSummary() {
 
   if (loading) {
     return (
-      <div className="card">
-        <h2 className="text-lg font-semibold mb-4">Current Weather</h2>
-        <div className="text-sm text-gray-500">Loading weather data...</div>
-      </div>
+      <Card>
+        <CardContent>
+          <Typography variant="h6" sx={{ mb: 2 }}>Current Weather</Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
+            <CircularProgress />
+          </Box>
+        </CardContent>
+      </Card>
     );
   }
 
@@ -20,62 +25,78 @@ export function WeatherSummary() {
   const latest = weather?.hourly?.length ? weather.hourly[weather.hourly.length - 1] : null;
 
   return (
-    <div className="card">
-      <h2 className="text-lg font-semibold mb-4">Weather Summary</h2>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {/* Temperature */}
-        <div className="text-center p-4 bg-gray-50 rounded-lg">
-          <div className="text-2xl mb-2">{latest ? (latest.temperature_c > 20 ? '\u2600\uFE0F' : '\u2601\uFE0F') : '\uD83C\uDF21\uFE0F'}</div>
-          <div className="text-sm text-gray-500">Temperature</div>
-          <div className="text-lg font-medium">
-            {latest ? formatTemp(latest.temperature_c, units) : '--'}
-          </div>
-          <div className="text-xs text-gray-400 mt-1">
-            7d avg: {weather ? formatTemp(weather.avg_temperature_c, units) : '--'}
-          </div>
-        </div>
+    <Card>
+      <CardContent>
+        <Typography variant="h6" sx={{ mb: 2 }}>Weather Summary</Typography>
+        <Grid container spacing={2}>
+          {/* Temperature */}
+          <Grid size={{ xs: 6, md: 3 }}>
+            <Box sx={{ textAlign: 'center', bgcolor: 'action.hover', p: 2, borderRadius: 2 }}>
+              <Typography variant="h4" sx={{ mb: 0.5 }}>
+                {latest ? (latest.temperature_c > 20 ? '\u2600\uFE0F' : '\u2601\uFE0F') : '\uD83C\uDF21\uFE0F'}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">Temperature</Typography>
+              <Typography variant="h6">
+                {latest ? formatTemp(latest.temperature_c, units) : '--'}
+              </Typography>
+              <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mt: 0.5 }}>
+                7d avg: {weather ? formatTemp(weather.avg_temperature_c, units) : '--'}
+              </Typography>
+            </Box>
+          </Grid>
 
-        {/* Rainfall */}
-        <div className="text-center p-4 bg-gray-50 rounded-lg">
-          <div className="text-2xl mb-2">{weather?.total_rainfall_mm && weather.total_rainfall_mm > 0 ? '\uD83C\uDF27\uFE0F' : '\u26AA'}</div>
-          <div className="text-sm text-gray-500">Rain (7 days)</div>
-          <div className="text-lg font-medium">
-            {weather ? formatLength(weather.total_rainfall_mm, units) : '--'}
-          </div>
-          {weather?.last_rain_timestamp && (
-            <div className="text-xs text-gray-400 mt-1">
-              Last: {formatHoursAgo(weather.last_rain_timestamp)} ({formatLength(weather.last_rain_mm, units)})
-            </div>
-          )}
-        </div>
+          {/* Rainfall */}
+          <Grid size={{ xs: 6, md: 3 }}>
+            <Box sx={{ textAlign: 'center', bgcolor: 'action.hover', p: 2, borderRadius: 2 }}>
+              <Typography variant="h4" sx={{ mb: 0.5 }}>
+                {weather?.total_rainfall_mm && weather.total_rainfall_mm > 0 ? '\uD83C\uDF27\uFE0F' : '\u26AA'}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">Rain (7 days)</Typography>
+              <Typography variant="h6">
+                {weather ? formatLength(weather.total_rainfall_mm, units) : '--'}
+              </Typography>
+              {weather?.last_rain_timestamp && (
+                <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mt: 0.5 }}>
+                  Last: {formatHoursAgo(weather.last_rain_timestamp)} ({formatLength(weather.last_rain_mm, units)})
+                </Typography>
+              )}
+            </Box>
+          </Grid>
 
-        {/* Sunshine */}
-        <div className="text-center p-4 bg-gray-50 rounded-lg">
-          <div className="text-2xl mb-2">{'\u2600\uFE0F'}</div>
-          <div className="text-sm text-gray-500">Sunshine (7d)</div>
-          <div className="text-lg font-medium">
-            {weather ? `${weather.total_sunshine_hours.toFixed(0)}h` : '--h'}
-          </div>
-          {latest && latest.sunshine_hours > 0 && (
-            <div className="text-xs text-yellow-600 mt-1">
-              Now: {latest.sunshine_hours}h sun
-            </div>
-          )}
-        </div>
+          {/* Sunshine */}
+          <Grid size={{ xs: 6, md: 3 }}>
+            <Box sx={{ textAlign: 'center', bgcolor: 'action.hover', p: 2, borderRadius: 2 }}>
+              <Typography variant="h4" sx={{ mb: 0.5 }}>\u2600\uFE0F</Typography>
+              <Typography variant="body2" color="text.secondary">Sunshine (7d)</Typography>
+              <Typography variant="h6">
+                {weather ? `${weather.total_sunshine_hours.toFixed(0)}h` : '--h'}
+              </Typography>
+              {latest && latest.sunshine_hours > 0 && (
+                <Typography variant="caption" color="warning.main" sx={{ display: 'block', mt: 0.5 }}>
+                  Now: {latest.sunshine_hours}h sun
+                </Typography>
+              )}
+            </Box>
+          </Grid>
 
-        {/* Sensors */}
-        <div className="text-center p-4 bg-gray-50 rounded-lg">
-          <div className="text-2xl mb-2">{weather ? '\u2705' : '\u26A0\uFE0F'}</div>
-          <div className="text-sm text-gray-500">Data Status</div>
-          <div className="text-lg font-medium">
-            {weather ? 'Connected' : 'No data'}
-          </div>
-          <div className="text-xs text-gray-400 mt-1">
-            {weather ? `${weather.hourly.length}h history` : 'Configure sensors'}
-          </div>
-        </div>
-      </div>
-    </div>
+          {/* Sensors */}
+          <Grid size={{ xs: 6, md: 3 }}>
+            <Box sx={{ textAlign: 'center', bgcolor: 'action.hover', p: 2, borderRadius: 2 }}>
+              <Typography variant="h4" sx={{ mb: 0.5 }}>
+                {weather ? '\u2705' : '\u26A0\uFE0F'}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">Data Status</Typography>
+              <Typography variant="h6">
+                {weather ? 'Connected' : 'No data'}
+              </Typography>
+              <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mt: 0.5 }}>
+                {weather ? `${weather.hourly.length}h history` : 'Configure sensors'}
+              </Typography>
+            </Box>
+          </Grid>
+        </Grid>
+      </CardContent>
+    </Card>
   );
 }
 
