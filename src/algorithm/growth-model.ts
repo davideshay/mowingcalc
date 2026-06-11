@@ -1,5 +1,6 @@
 import { AppConfig } from '../config/schema';
 import { HourlyWeather } from '../weather/service';
+import { SoilMoistureTracker } from './soil-moisture';
 
 // Research-backed grass growth model based on:
 // 1. GCSAA Growth Potential (temperature response curve) - PACE Turf / Gelernter & Stowell
@@ -60,8 +61,9 @@ export class GrowthModel {
    *   Cool-season: optT=20C, sd=5.56C (10F)
    *   Warm-season: optT=31C, sd=7.3C (12F)
    *
-   * moisture_factor: Current soil moisture effect (0.3-1.5)
-   *   Passed in from caller (decision engine) which has the updated SoilMoistureTracker state
+   * moisture_factor: Per-hour soil moisture effect (0.3-1.5)
+   *   When a SoilMoistureTracker is provided, computes moisture at each hour.
+   *   Otherwise uses the current snapshot as a constant (less accurate).
    *   Below wilting point: 0.3 (severe stress)
    *   Wilting point to field capacity: linear interpolation
    *   At field capacity: 1.0 (optimal)
@@ -76,14 +78,14 @@ export class GrowthModel {
    *   Clay: 0.90 (good nutrients, poor drainage)
    *
    * seasonal_factor: Photoperiod/dormancy adjustment (0.0-1.0)
-   *   Based on latitude and day of year
+   *   Computed per-hour based on day-of-year
    *   Cool-season: bimodal (spring/fall peaks, summer/winter dormancy)
    *   Warm-season: unimodal (summer peak, winter dormancy)
    */
   public calculateGrowth(
     hourlyWeather: HourlyWeather[],
     lastMowTime: Date | null,
-    currentSoilMoisturePct?: number,
+    soilTracker?: SoilMoistureTracker,
   ): GrowthResult {
     const { growthModel } = this.config;
     const { baseRatePerDay, rainMultiplier, sunGrowthBoost, soilType, latitude } = growthModel;
@@ -102,18 +104,15 @@ export class GrowthModel {
       (growthModel.tempOptimalMax - growthModel.tempOptimalMin) / 2;
 
     // Pre-calculate factors that are the same for all hours
-    const seasonalFactor = this.calculateSeasonalFactor(latitude);
+    const seasonalFactorToday = this.calculateSeasonalFactor(latitude);
     const soilFactor = this.calculateSoilFactor(soilType);
 
-    // Current moisture factor (computed once, passed in from caller)
-    // If no tracker value available, fall back to wilting point (conservative = drought).
-    // Previously defaulted to field capacity (optimal), which overestimated growth.
-    const currentMoistureFactor = this.moistureFactorFromVWC(
-      currentSoilMoisturePct ?? (() => {
-        const { fc, wp } = this.getSoilMoistureBounds(growthModel.soilType);
-        return wp; // wilting point = conservative drought estimate
-      })(),
-    );
+    // Fallback moisture factor (constant, when no tracker provided)
+    // Defaults to wilting point (conservative = drought) when no data available.
+    const fallbackMoistureFactor = (() => {
+      const { fc, wp } = this.getSoilMoistureBounds(growthModel.soilType);
+      return this.moistureFactorFromVWC(wp);
+    })();
 
     // Pre-pass: compute average temperature from buckets that have real sensor data.
     // Uninitialized hourly buckets are filled with all zeros (temp=0, rain=0, sun=0).
@@ -144,12 +143,21 @@ export class GrowthModel {
       // Sun factor varies hourly
       const sunFactor = this.calculateSunFactor(hour.sunshine_hours, sunGrowthBoost);
 
+      // Seasonal factor varies by day-of-year — compute per-hour for accuracy
+      // during spring/fall transitions (can shift 5-15% over a week)
+      const seasonalFactor = this.calculateSeasonalFactor(latitude, hour.timestamp);
+
+      // Moisture factor: per-hour when tracker available, constant fallback otherwise
+      const moistureFactor = soilTracker
+        ? this.moistureFactorFromVWC(soilTracker.computeMoistureAt(hourlyWeather, hour.timestamp))
+        : fallbackMoistureFactor;
+
       // Hourly growth rate using the DAILY GP factor (not per-hour GP).
       // GP captures overall temperature suitability — it does not fluctuate hourly.
       const hourlyGrowth =
         (baseRatePerDay / 24) *
         gpFactorDaily *
-        currentMoistureFactor *
+        moistureFactor *
         sunFactor *
         soilFactor *
         seasonalFactor;
@@ -166,7 +174,7 @@ export class GrowthModel {
         temperature_c: hour.temperature_c,
         rainfall_mm: hour.rainfall_mm,
         gp_factor: Math.round(gpFactorDaily * 1000) / 1000,
-        moisture_factor: Math.round(currentMoistureFactor * 1000) / 1000,
+        moisture_factor: Math.round(moistureFactor * 1000) / 1000,
         sun_factor: Math.round(sunFactor * 1000) / 1000,
       });
 
@@ -188,7 +196,7 @@ export class GrowthModel {
       daily_growth_mm: Math.round(dailyGrowth * 100) / 100,
       growth_since_mow_mm: Math.round(totalGrowth * 100) / 100,
       gp_factor: Math.round(gpFactorDaily * 1000) / 1000,
-      moisture_factor: Math.round(currentMoistureFactor * 1000) / 1000,
+      moisture_factor: Math.round(fallbackMoistureFactor * 1000) / 1000,
       sun_factor: Math.round(
         this.calculateSunFactor(
           hourlyWeather[hourlyWeather.length - 1]?.sunshine_hours ?? 0,
@@ -196,7 +204,7 @@ export class GrowthModel {
         ) * 1000,
       ) / 1000,
       soil_factor: Math.round(soilFactor * 1000) / 1000,
-      seasonal_factor: Math.round(seasonalFactor * 1000) / 1000,
+      seasonal_factor: Math.round(seasonalFactorToday * 1000) / 1000,
       // NEW diagnostics
       avg_temperature_c: Math.round((sumTemp / n) * 10) / 10,
       min_temperature_c: Math.round(minTemp * 10) / 10,
@@ -320,12 +328,12 @@ export class GrowthModel {
    * At latitude 0 (equator): no seasonal variation (factor = 1.0 always)
    * At higher latitudes: more pronounced seasonal variation
    */
-  private calculateSeasonalFactor(latitude: number): number {
+  private calculateSeasonalFactor(latitude: number, date?: Date): number {
     // Determine grass season type based on optimal temp range
     const isWarmSeason = this.config.growthModel.tempOptimalMin >= 25;
 
-    // Get day of year (1-365)
-    const now = new Date();
+    // Use provided date (for historical hours) or current time
+    const now = date ?? new Date();
     const start = new Date(now.getFullYear(), 0, 0);
     const diff = now.getTime() - start.getTime();
     const dayOfYear = Math.floor(diff / (1000 * 60 * 60 * 24));

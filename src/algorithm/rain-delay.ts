@@ -57,8 +57,8 @@ export class RainDelayModel {
 
     const intensity = this.classifyRainIntensity(hourlyWeather, lastRain.timestamp);
     const hoursSinceRain = this.hoursSince(lastRain.timestamp);
-    const sunFactor = this.sunDryingFactor(hourlyWeather, new Date());
-    const tempFactor = this.tempDryingFactor(hourlyWeather, new Date());
+    const sunFactor = this.sunDryingFactor(hourlyWeather, lastRain.timestamp);
+    const tempFactor = this.tempDryingFactor(hourlyWeather, lastRain.timestamp);
 
     const fieldCapacity = this.fieldCapacity();
     const tau = this.dryingTimeConstant();
@@ -68,7 +68,9 @@ export class RainDelayModel {
     const effectiveTau = tau * weatherModifier;
 
     const compactionThreshold = this.getCompactionThreshold();
-    const safeMoistureThreshold = compactionThreshold * fieldCapacity;
+    // Safe-to-mow threshold: FC divided by compaction factor (below FC).
+    // E.g., compactionThreshold=1.05, fc=40 => 40/1.05 = 38.1
+    const safeMoistureThreshold = fieldCapacity / compactionThreshold;
 
     const surfaceDryFactor = this.config.rainDelayModel.surfaceDryFactor;
     const optimalMoistureThreshold = (1 - surfaceDryFactor) * fieldCapacity;
@@ -183,25 +185,31 @@ export class RainDelayModel {
 
   private sunDryingFactor(
     hourlyWeather: HourlyWeather[],
-    _now: Date,
+    sinceTimestamp: Date,
   ): number {
     const { rainDelayModel } = this.config;
     let totalSunHours = 0;
     for (const hour of hourlyWeather) {
-      totalSunHours += hour.sunshine_hours;
+      // Only count sunshine AFTER the last rain
+      if (hour.timestamp >= sinceTimestamp) {
+        totalSunHours += hour.sunshine_hours;
+      }
     }
     return Math.min(0.6, totalSunHours * rainDelayModel.sunDryingRate);
   }
 
   private tempDryingFactor(
     hourlyWeather: HourlyWeather[],
-    _now: Date,
+    sinceTimestamp: Date,
   ): number {
     const { rainDelayModel } = this.config;
     let warmHours = 0;
     for (const hour of hourlyWeather) {
-      if (hour.temperature_c > 15) {
-        warmHours += (hour.temperature_c - 15) * rainDelayModel.tempDryingFactor;
+      // Only count warm hours AFTER the last rain
+      if (hour.timestamp >= sinceTimestamp) {
+        if (hour.temperature_c > 15) {
+          warmHours += (hour.temperature_c - 15) * rainDelayModel.tempDryingFactor;
+        }
       }
     }
     return Math.min(0.4, warmHours);
@@ -235,7 +243,7 @@ export class RainDelayModel {
     const fc = this.fieldCapacity();
     const compactionThreshold = this.getCompactionThreshold();
     const surfaceDryFactor = this.config.rainDelayModel.surfaceDryFactor;
-    const safeMoistureThreshold = compactionThreshold * fc;
+    const safeMoistureThreshold = fc / compactionThreshold;
     const isSafe = currentMoisture <= safeMoistureThreshold;
     return {
       earliest_delay_hours: isSafe ? 0 : this.config.rainDelayModel.minDelayAfterRain,

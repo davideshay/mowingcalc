@@ -10,7 +10,8 @@ export interface SoilMoistureState {
   last_rain_total_mm: number;
   last_rain_timestamp: string | null;
   last_updated_at: string;
-  // NEW: timestamp of the earliest weather data processed, to prevent double-counting rain
+  // NEW: timestamp up to which weather data has been processed for rain.
+  // Used to prevent double-counting rain across repeated algorithm runs.
   last_weather_start: string;
 }
 
@@ -62,14 +63,15 @@ export class SoilMoistureTracker {
   }
 
   /**
-   * Update soil moisture estimate using persisted state + current weather data.
+   * Update soil moisture estimate using current weather data.
    * Returns the current estimated soil moisture percentage.
    *
-   * Key design: only processes rain that falls AFTER the last weather window we processed.
-   * This prevents double-counting rain across repeated algorithm runs with overlapping data.
+   * Design: compute from scratch on each call using the full weather window.
+   * This avoids double-counting rain when the sliding window shifts.
+   * Starts from a baseline (85% of field capacity), applies decay for the
+   * full window period, then adds infiltration from all rain in the window.
    */
   public update(hourlyWeather: HourlyWeather[]): number {
-    const state = this.loadState();
     const fc = this.fieldCapacity();
     const tau = this.dryingTimeConstant();
     const thetaRes = fc * 0.5;
@@ -79,113 +81,14 @@ export class SoilMoistureTracker {
     const sorted = [...hourlyWeather].sort(
       (a, b) => a.timestamp.getTime() - b.timestamp.getTime(),
     );
-    const weatherStart = sorted.length > 0 ? sorted[0].timestamp : now;
-    const weatherEnd = sorted.length > 0 ? sorted[sorted.length - 1].timestamp : now;
 
-    // Check for stale/corrupted state:
-    // 1. If below wilting point (~12% for loam): old dry-baseline bug
-    // 2. If above FC + 10% (>50% for loam): impossible, must be from the rain leak bug
-    // 3. If last_rain_total_mm is impossibly high: accumulated double-counted rain
-    const wiltingPoint = this.wiltingPoint();
-    const isStale = state && state.last_weather_start && (
-      state.estimated_pct < wiltingPoint ||
-      state.estimated_pct > fc + 10 ||
-      state.last_rain_total_mm > 100 // more than 100mm of rain in history is clearly wrong
-    );
-
-    if (!state || !state.last_weather_start || isStale) {
-      // First run or corrupted state — backfill from historical weather data
-      logger.info(
-        { weather_start: weatherStart.toISOString(), stale: isStale, old_pct: state?.estimated_pct },
-        isStale
-          ? 'Stale/corrupted soil moisture state detected — backfilling'
-          : 'No valid soil moisture state — backfilling from historical data',
-      );
-      return this.backfill(sorted, fc, tau, thetaRes, now, weatherStart);
-    }
-
-    // Decay forward from last update to now
-    const hoursElapsed = (now.getTime() - new Date(state.last_updated_at).getTime()) / 3600000;
-    const sunFactor = this.sunDryingFactor(sorted, new Date(state.last_updated_at));
-    const tempFactor = this.tempDryingFactor(sorted, new Date(state.last_updated_at));
-    const weatherModifier = Math.max(0.5, 1 - (sunFactor + tempFactor) * 0.2);
-    const effectiveTau = tau * weatherModifier;
-
-    // Exponential decay toward thetaRes (residual moisture / dry baseline)
-    let moisture = thetaRes + (state.estimated_pct - thetaRes) * Math.exp(-hoursElapsed / effectiveTau);
-
-    // Only count rain that falls AFTER the last weather window we already processed.
-    // This prevents double-counting when the same weather data overlaps across runs.
-    const lastWeatherStart = new Date(state.last_weather_start);
-    const newRainMm = this.rainAfter(sorted, lastWeatherStart);
-
-    if (newRainMm > 0) {
-      // Infiltration: each mm of rain raises soil moisture by ~0.5 pct points
-      moisture += newRainMm * 0.5;
-
-      // Find the latest rain timestamp for tracking
-      const latestRainTs = this.latestRainTimestampAfter(sorted, lastWeatherStart);
-      this.saveState({
-        estimated_pct: this.clampMoisture(moisture, fc),
-        last_rain_total_mm: state.last_rain_total_mm + newRainMm,
-        last_rain_timestamp: latestRainTs,
-        last_updated_at: now.toISOString(),
-        last_weather_start: weatherEnd.toISOString(),
-      });
-    } else {
-      // CRITICAL: always advance last_weather_start even when no new rain.
-      // If we don't, the same rain data gets re-processed every algorithm run.
-      this.saveState({
-        estimated_pct: this.clampMoisture(moisture, fc),
-        last_rain_total_mm: state.last_rain_total_mm,
-        last_rain_timestamp: state.last_rain_timestamp,
-        last_updated_at: now.toISOString(),
-        last_weather_start: weatherEnd.toISOString(),
-      });
-    }
-
-    return this.clampMoisture(moisture, fc);
-  }
-
-  /**
-   * Backfill: simulate soil moisture from historical weather data to seed initial state.
-   * Walks through all hourly data, applying rain and decay from a RESIDUAL baseline
-   * (assumes soil was dry before our data window started).
-   */
-  private backfill(
-    sorted: HourlyWeather[],
-    fc: number,
-    tau: number,
-    thetaRes: number,
-    now: Date,
-    weatherStart: Date,
-  ): number {
-    if (sorted.length === 0) {
-      // No data — seed at field capacity (realistic default for maintained lawn)
-      const state: SoilMoistureState = {
-        estimated_pct: fc,
-        last_rain_total_mm: 0,
-        last_rain_timestamp: null,
-        last_updated_at: now.toISOString(),
-        last_weather_start: weatherStart.toISOString(),
-      };
-      this.saveState(state);
-      return fc;
-    }
-
-    // Start from a realistic level — 85% of FC.
-    // A maintained spring lawn sits between 75-90% of FC under normal conditions.
-    // This avoids two problems:
-    // 1. Starting from residual (20%): growth model underestimates for weeks until rain accumulates
-    // 2. Starting from FC (40%): rain delay model falsely blocks mowing after any rain event
-    let moisture = fc * 0.85;
+    // Compute from scratch: baseline + decay + rain infiltration
+    let moisture = fc * 0.85; // Start from realistic baseline (85% FC)
     let totalRain = 0;
     let lastRainTs: string | null = null;
     const dt = 1; // 1-hour steps
 
-    for (let i = 0; i < sorted.length; i++) {
-      const hour = sorted[i];
-
+    for (const hour of sorted) {
       // Decay for 1 hour
       moisture = thetaRes + (moisture - thetaRes) * Math.exp(-dt / tau);
 
@@ -200,58 +103,58 @@ export class SoilMoistureTracker {
     }
 
     // Decay from last data point to now
-    const hoursToNow = (now.getTime() - sorted[sorted.length - 1].timestamp.getTime()) / 3600000;
-    if (hoursToNow > 0) {
-      moisture = thetaRes + (moisture - thetaRes) * Math.exp(-hoursToNow / tau);
+    if (sorted.length > 0) {
+      const hoursToNow = (now.getTime() - sorted[sorted.length - 1].timestamp.getTime()) / 3600000;
+      if (hoursToNow > 0) {
+        moisture = thetaRes + (moisture - thetaRes) * Math.exp(-hoursToNow / tau);
+      }
     }
 
-    const state: SoilMoistureState = {
+    // Persist state for external consumers (rain delay, etc.)
+    this.saveState({
       estimated_pct: this.clampMoisture(moisture, fc),
       last_rain_total_mm: totalRain,
       last_rain_timestamp: lastRainTs,
       last_updated_at: now.toISOString(),
-      last_weather_start: weatherStart.toISOString(),
-    };
-    this.saveState(state);
-
-    logger.info(
-      { estimated_pct: moisture.toFixed(1), total_rain_mm: totalRain.toFixed(1) },
-      'Soil moisture backfill complete',
-    );
+      last_weather_start: now.toISOString(),
+    });
 
     return this.clampMoisture(moisture, fc);
   }
 
   /**
-   * Sum rainfall that occurred AFTER the given timestamp.
-   * Strictly greater-than comparison to prevent double-counting.
+   * Compute soil moisture at a specific historical timestamp.
+   * Walks weather data from the start up to (and including) the given timestamp,
+   * applying decay + rain infiltration. Used by the growth model to compute
+   * per-hour moisture factors instead of using a single snapshot.
    */
-  private rainAfter(hourlyWeather: HourlyWeather[], afterTimestamp: Date): number {
-    let total = 0;
-    for (const h of hourlyWeather) {
-      if (h.timestamp > afterTimestamp && h.rainfall_mm > 0) {
-        total += h.rainfall_mm;
-      }
-    }
-    return total;
-  }
+  public computeMoistureAt(hourlyWeather: HourlyWeather[], atTimestamp: Date): number {
+    const fc = this.fieldCapacity();
+    const tau = this.dryingTimeConstant();
+    const thetaRes = fc * 0.5;
+    const dt = 1; // 1-hour steps
 
-  /**
-   * Find the latest rain timestamp after the given timestamp.
-   */
-  private latestRainTimestampAfter(
-    hourlyWeather: HourlyWeather[],
-    afterTimestamp: Date,
-  ): string {
-    let latest: Date | null = null;
-    for (const h of hourlyWeather) {
-      if (h.timestamp > afterTimestamp && h.rainfall_mm > 0) {
-        if (latest === null || h.timestamp > latest) {
-          latest = h.timestamp;
-        }
+    const sorted = [...hourlyWeather].sort(
+      (a, b) => a.timestamp.getTime() - b.timestamp.getTime(),
+    );
+
+    let moisture = fc * 0.85; // Start from realistic baseline (85% FC)
+
+    for (const hour of sorted) {
+      if (hour.timestamp > atTimestamp) break;
+
+      // Decay for 1 hour
+      moisture = thetaRes + (moisture - thetaRes) * Math.exp(-dt / tau);
+
+      // Add rain for this hour
+      if (hour.rainfall_mm > 0) {
+        moisture += hour.rainfall_mm * 0.5;
       }
+
+      moisture = this.clampMoisture(moisture, fc);
     }
-    return latest?.toISOString() ?? new Date().toISOString();
+
+    return moisture;
   }
 
   private fieldCapacity(): number {

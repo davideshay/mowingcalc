@@ -66,11 +66,11 @@ export class DecisionEngine {
     // 3. Calculate rain delay first (updates soil moisture tracker state)
     const rainDelay = this.rainDelay.calculateDelay(hourly, this.soilTracker);
 
-    // 4. Calculate grass growth with current soil moisture from tracker
+    // 4. Calculate grass growth with per-hour soil moisture from tracker
     const growth = this.growth.calculateGrowth(
       hourly,
       lastMowTime,
-      rainDelay.estimated_soil_moisture_pct,
+      this.soilTracker,
     );
 
     // 5. Check forecast for next N hours (avg mowing duration + buffer)
