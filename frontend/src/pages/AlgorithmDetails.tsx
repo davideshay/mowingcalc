@@ -29,27 +29,37 @@ import Grass from '@mui/icons-material/Grass';
 import WaterDrop from '@mui/icons-material/WaterDrop';
 import Cloud from '@mui/icons-material/Cloud';
 import Description from '@mui/icons-material/Description';
+// Weather icons (SVG - no font dependency)
+import WbSunny from '@mui/icons-material/WbSunny';
+import NightsStay from '@mui/icons-material/NightsStay';
+import CloudQueue from '@mui/icons-material/CloudQueue';
+import Thunderstorm from '@mui/icons-material/Thunderstorm';
+import WbCloudy from '@mui/icons-material/WbCloudy';
+import AcUnit from '@mui/icons-material/AcUnit';
+import Air from '@mui/icons-material/Air';
+import Visibility from '@mui/icons-material/Visibility';
+import WarningAmber from '@mui/icons-material/WarningAmber';
+import WaterDropOutlined from '@mui/icons-material/WaterDropOutlined';
 
-function conditionIcon(condition: string, isDaytime?: boolean) {
-  const map: Record<string, string> = {
-    sunny: isDaytime === false ? '\uD83C\uDF19' : '\u2600\uFE0F',
-    clear: isDaytime === false ? '\uD83C\uDF19' : '\u2600\uFE0F',
-    cloudy: '\u2601\uFE0F',
-    'partlycloudy': '\u26C5',
-    'partly-cloudy': '\u26C5',
-    'partly_cloudy': '\u26C5',
-    rainy: '\uD83C\uDF27\uFE0F',
-    drizzle: '\uD83C\uDF27\uFE0F',
-    snowy: '\u2744\uFE0F',
-    windy: '\uD83D\uDCA8',
-    fog: '\uD83C\uDF2B\uFE0F',
-    night: '\uD83C\uDF19',
-    'clear-night': '\uD83C\uDF19',
-    'sunny-night': '\uD83C\uDF19',
-    'cloudy-night': '\u2601\uFE0F',
-    'partlycloudy-night': '\u26C5',
-  };
-  return map[condition.toLowerCase()] || (isDaytime === false ? '\uD83C\uDF19' : '\uD83C\uDF24\uFE0F');
+/** Return a weather icon component from a Home Assistant condition string. */
+function ConditionIcon({ condition, isDaytime, sx }: { condition: string; isDaytime?: boolean; sx?: any }) {
+  const iconSize = 20;
+  const cond = condition.toLowerCase();
+  const night = isDaytime === false || cond === 'clear-night' || cond === 'sunny-night' || cond === 'night' || cond === 'partlycloudy-night' || cond === 'cloudy-night';
+  let Icon: any;
+  if (['sunny', 'clear'].includes(cond) && !night) Icon = WbSunny;
+  else if (night) Icon = NightsStay;
+  else if (['cloudy', 'cloudy-night'].includes(cond)) Icon = Cloud;
+  else if (['partlycloudy', 'partly-cloudy', 'partly_cloudy', 'partlycloudy-night'].includes(cond)) Icon = WbCloudy;
+  else if (['rainy', 'drizzle', 'pouring'].includes(cond)) Icon = CloudQueue;
+  else if (['lightning-rainy', 'thunderstorm'].includes(cond)) Icon = Thunderstorm;
+  else if (['snowy'].includes(cond)) Icon = AcUnit;
+  else if (['snowy-rainy'].includes(cond)) Icon = Thunderstorm;
+  else if (['windy', 'windy-variant'].includes(cond)) Icon = Air;
+  else if (['fog', 'hazy'].includes(cond)) Icon = Visibility;
+  else if (cond === 'exceptional') Icon = WarningAmber;
+  else Icon = night ? NightsStay : WbSunny;
+  return <Icon sx={{ width: iconSize, height: iconSize, ...sx }} />;
 }
 
 function formatTimestamp(ts: string | null): string {
@@ -814,9 +824,9 @@ export function AlgorithmDetails() {
                                         title={tip}
                                       >
                                         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.25 }}>
-                                          <Box sx={{ display: 'flex', alignItems: 'center', fontSize: '0.875rem', lineHeight: 1 }}>
-                                            <span>{precipHigh ? '\uD83C\uDF27\uFE0F' : conditionIcon(hour.condition, hour.is_daytime)}</span>
-                                            {hour.precipitation_probability > 0 && !precipHigh && <span style={{ fontSize: '0.625rem' }}>{'\uD83D\uDA42'}</span>}
+                                          <Box sx={{ display: 'flex', alignItems: 'center', lineHeight: 1 }}>
+                                            {precipHigh ? <CloudQueue sx={{ width: 20, height: 20 }} /> : <ConditionIcon condition={hour.condition} isDaytime={hour.is_daytime} />}
+                                            {hour.precipitation_probability > 0 && !precipHigh && <WaterDropOutlined sx={{ width: 14, height: 14 }} />}
                                           </Box>
                                           <Typography
                                             variant="body2"
@@ -883,7 +893,6 @@ export function AlgorithmDetails() {
                             const date = new Date(day.datetime);
                             const precipHigh = day.precipitation_probability > (config?.maxPrecipitationChance || 30);
                             const isDaytime = day.is_daytime;
-                            const icon = precipHigh ? '\uD83C\uDF27\uFE0F' : conditionIcon(day.condition, isDaytime);
                             return (
                               <TableRow
                                 key={i}
@@ -895,9 +904,9 @@ export function AlgorithmDetails() {
                               >
                                 <TableCell sx={{ whiteSpace: 'nowrap' }}>{format(date, 'EEE, MMM d')}</TableCell>
                                 <TableCell align="center" sx={{ fontSize: '0.75rem' }}>
-                                  {isDaytime != null ? (isDaytime ? '\u2600\uFE0F Day' : '\uD83C\uDF19 Night') : '-'}
+                                  {isDaytime != null ? (isDaytime ? <><WbSunny sx={{ width: 14, height: 14, mr: 0.5, verticalAlign: 'middle' }} /> Day</> : <><NightsStay sx={{ width: 14, height: 14, mr: 0.5, verticalAlign: 'middle' }} /> Night</>) : '-'}
                                 </TableCell>
-                                <TableCell align="center" sx={{ fontSize: '1.25rem' }}>{icon}</TableCell>
+                                <TableCell align="center"><Box sx={{ display: 'flex', justifyContent: 'center' }}>{precipHigh ? <CloudQueue sx={{ width: 24, height: 24 }} /> : <ConditionIcon condition={day.condition} isDaytime={isDaytime} sx={{ width: 24, height: 24 }} />}</Box></TableCell>
                                 <TableCell align="right">
                                   {Math.round(day.temperature)} deg
                                   {day.templow != null && <Typography variant="body2" component="span" color="text.disabled"> / {Math.round(day.templow)} deg</Typography>}

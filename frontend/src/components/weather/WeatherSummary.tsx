@@ -1,4 +1,9 @@
 import { Card, CardContent, Typography, Box, Grid, CircularProgress } from '@mui/material';
+import WbSunny from '@mui/icons-material/WbSunny';
+import Cloud from '@mui/icons-material/Cloud';
+import CloudQueue from '@mui/icons-material/CloudQueue';
+import CheckCircle from '@mui/icons-material/CheckCircle';
+import WarningAmber from '@mui/icons-material/WarningAmber';
 import { useWeatherHistory, useConfig } from '../../hooks/useApi';
 import { formatTemp, formatLength } from '../../utils/units';
 
@@ -32,9 +37,9 @@ export function WeatherSummary() {
           {/* Temperature */}
           <Grid size={{ xs: 6, md: 3 }}>
             <Box sx={{ textAlign: 'center', bgcolor: 'action.hover', p: 2, borderRadius: 2 }}>
-              <Typography variant="h4" sx={{ mb: 0.5 }}>
-                {latest ? (latest.temperature_c > 20 ? '\u2600\uFE0F' : '\u2601\uFE0F') : '\uD83C\uDF21\uFE0F'}
-              </Typography>
+              <Box sx={{ mb: 0.5, display: 'flex', justifyContent: 'center' }}>
+                {latest ? (latest.temperature_c > 20 ? <WbSunny sx={{ width: 32, height: 32 }} /> : <Cloud sx={{ width: 32, height: 32 }} />) : <CloudQueue sx={{ width: 32, height: 32 }} />}
+              </Box>
               <Typography variant="body2" color="text.secondary">Temperature</Typography>
               <Typography variant="h6">
                 {latest ? formatTemp(latest.temperature_c, units) : '--'}
@@ -48,9 +53,9 @@ export function WeatherSummary() {
           {/* Rainfall */}
           <Grid size={{ xs: 6, md: 3 }}>
             <Box sx={{ textAlign: 'center', bgcolor: 'action.hover', p: 2, borderRadius: 2 }}>
-              <Typography variant="h4" sx={{ mb: 0.5 }}>
-                {weather?.total_rainfall_mm && weather.total_rainfall_mm > 0 ? '\uD83C\uDF27\uFE0F' : '\u26AA'}
-              </Typography>
+              <Box sx={{ mb: 0.5, display: 'flex', justifyContent: 'center' }}>
+                {weather?.total_rainfall_mm && weather.total_rainfall_mm > 0 ? <CloudQueue sx={{ width: 32, height: 32 }} /> : <Cloud sx={{ width: 32, height: 32 }} />}
+              </Box>
               <Typography variant="body2" color="text.secondary">Rain (7 days)</Typography>
               <Typography variant="h6">
                 {weather ? formatLength(weather.total_rainfall_mm, units) : '--'}
@@ -66,7 +71,9 @@ export function WeatherSummary() {
           {/* Sunshine */}
           <Grid size={{ xs: 6, md: 3 }}>
             <Box sx={{ textAlign: 'center', bgcolor: 'action.hover', p: 2, borderRadius: 2 }}>
-              <Typography variant="h4" sx={{ mb: 0.5 }}>{'\u2600\uFE0F'}</Typography>
+              <Box sx={{ mb: 0.5, display: 'flex', justifyContent: 'center' }}>
+                <WbSunny sx={{ width: 32, height: 32 }} />
+              </Box>
               <Typography variant="body2" color="text.secondary">Sunshine (7d)</Typography>
               <Typography variant="h6">
                 {weather ? `${weather.total_sunshine_hours.toFixed(0)}h` : '--h'}
@@ -82,9 +89,9 @@ export function WeatherSummary() {
           {/* Sensors */}
           <Grid size={{ xs: 6, md: 3 }}>
             <Box sx={{ textAlign: 'center', bgcolor: 'action.hover', p: 2, borderRadius: 2 }}>
-              <Typography variant="h4" sx={{ mb: 0.5 }}>
-                {weather ? '\u2705' : '\u26A0\uFE0F'}
-              </Typography>
+              <Box sx={{ mb: 0.5, display: 'flex', justifyContent: 'center' }}>
+                {weather ? <CheckCircle sx={{ width: 32, height: 32, color: 'success.main' }} /> : <WarningAmber sx={{ width: 32, height: 32 }} />}
+              </Box>
               <Typography variant="body2" color="text.secondary">Data Status</Typography>
               <Typography variant="h6">
                 {weather ? 'Connected' : 'No data'}

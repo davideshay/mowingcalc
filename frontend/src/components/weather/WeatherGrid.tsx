@@ -1,6 +1,11 @@
 import React from 'react';
 import { Box, Typography, Table, TableBody, TableCell, TableHead, TableRow } from '@mui/material';
 import { alpha } from '@mui/material/styles';
+import WbSunny from '@mui/icons-material/WbSunny';
+import WbCloudy from '@mui/icons-material/WbCloudy';
+import Cloud from '@mui/icons-material/Cloud';
+import CloudQueue from '@mui/icons-material/CloudQueue';
+import WaterDrop from '@mui/icons-material/WaterDrop';
 import { toDisplayLength, toDisplayTemp, tempUnit, lengthUnit } from '../../utils/units';
 import type { DisplayUnits } from '../../utils/units';
 
@@ -16,17 +21,17 @@ interface Props {
   units: DisplayUnits;
 }
 
-function weatherIcon(sun: number): string {
-  if (sun >= 0.8) return '\u2600\uFE0F';
-  if (sun >= 0.3) return '\u26C5';
-  return '\u2601\uFE0F';
+function weatherIconComponent(sun: number) {
+  if (sun >= 0.8) return <WbSunny sx={{ width: 20, height: 20 }} />;
+  if (sun >= 0.3) return <WbCloudy sx={{ width: 20, height: 20 }} />;
+  return <Cloud sx={{ width: 20, height: 20 }} />;
 }
 
-function rainIcon(mm: number): string {
-  if (mm <= 0) return '';
-  if (mm > 10) return ' \uD83C\uDF27\uFE0F';
-  if (mm > 3) return ' \uD83D\uDCA7\uD83D\uDCA7';
-  return ' \uD83D\uDCA7';
+function rainIconComponent(mm: number) {
+  if (mm <= 0) return null;
+  if (mm > 10) return <CloudQueue sx={{ width: 16, height: 16 }} />;
+  if (mm > 3) return <Box sx={{ display: 'flex' }}><WaterDrop sx={{ width: 12, height: 12 }} /><WaterDrop sx={{ width: 12, height: 12 }} /></Box>;
+  return <WaterDrop sx={{ width: 14, height: 14 }} />;
 }
 
 function localHour(iso: string): number {
@@ -117,9 +122,9 @@ function cell(h: HourData | null, units: DisplayUnits) {
       title={tip}
     >
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.25 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', fontSize: '1.125rem', lineHeight: 1 }}>
-          <span>{weatherIcon(h.sunshine_hours)}</span>
-          {rainIcon(h.rainfall_mm)}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          {weatherIconComponent(h.sunshine_hours)}
+          {rainIconComponent(h.rainfall_mm)}
         </Box>
         <Typography
           variant="body2"
