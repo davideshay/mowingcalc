@@ -380,6 +380,36 @@ function createApp(): express.Application {
     }
   });
 
+  // List HA entities filtered by domain (e.g., sensor, weather)
+  app.get('/api/ha/entities', async (req, res) => {
+    if (!ha) {
+      return res.json({ error: 'HA not connected', entities: [] });
+    }
+    const domain = (req.query.domain as string) || '';
+    try {
+      const connected = await ha.healthCheck();
+      if (!connected) {
+        return res.json({ error: 'HA not connected', entities: [] });
+      }
+      const allStates = await ha.getAllStates();
+      // Filter by domain if provided, sort alphabetically
+      const filtered = domain
+        ? allStates.filter((s) => s.entity_id.startsWith(domain + '.'))
+        : allStates;
+      const entities = filtered
+        .sort((a, b) => a.entity_id.localeCompare(b.entity_id))
+        .map((s) => ({
+          entity_id: s.entity_id,
+          state: s.state,
+          unit_of_measurement: (s.attributes as Record<string, unknown>)['unit_of_measurement'] || null,
+          friendly_name: (s.attributes as Record<string, unknown>)['friendly_name'] || null,
+        }));
+      res.json({ entities });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to list entities', details: String(err), entities: [] });
+    }
+  });
+
   // Validate HA setup - check all configured entities exist and are accessible
   app.get('/api/validate-ha', async (_req, res) => {
     if (!ha) {

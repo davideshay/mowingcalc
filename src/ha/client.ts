@@ -125,6 +125,11 @@ export class HAClient {
     return this.request<HAEntityState>(`/api/states/${entityId}`);
   }
 
+  // Get ALL entity states from HA
+  async getAllStates(): Promise<HAEntityState[]> {
+    return this.request<HAEntityState[]>('/api/states');
+  }
+
   // Get states from multiple entities, return array of {entity_id, value}
   async getNumericStates(entityIds: string[]): Promise<Array<{ entity_id: string; value: number }>> {
     const results: Array<{ entity_id: string; value: number }> = [];

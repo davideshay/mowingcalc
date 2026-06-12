@@ -10,13 +10,15 @@ import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
 import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
-import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
 import Divider from '@mui/material/Divider';
 import Alert from '@mui/material/Alert';
-import AddOutlined from '@mui/icons-material/AddOutlined';
 import DeleteOutlined from '@mui/icons-material/DeleteOutlined';
 import Chip from '@mui/material/Chip';
+import Autocomplete from '@mui/material/Autocomplete';
+import CircularProgress from '@mui/material/CircularProgress';
+import RefreshOutlined from '@mui/icons-material/RefreshOutlined';
+import { useHAEntities } from '../../hooks/useApi';
 
 interface SunshineSource {
   entity_id: string;
@@ -43,19 +45,136 @@ interface Props {
   onChange: (groups: EntityGroups) => void;
 }
 
-export function EntityGroupsEditor({ groups, onChange }: Props) {
-  const [newSensor, setNewSensor] = useState('');
-  const [activeGroup, setActiveGroup] = useState<string | null>(null);
+// HA sensor entity type (from our API)
+interface HAEntity {
+  entity_id: string;
+  state: string;
+  unit_of_measurement: string | null;
+  friendly_name: string | null;
+}
 
-  const addSensor = (group: string) => {
-    if (!newSensor.trim()) return;
-    const current = groups[group as keyof EntityGroups] as string[];
-    onChange({
-      ...groups,
-      [group]: [...current, newSensor.trim()],
-    });
-    setNewSensor('');
+// Autocomplete sensor picker — selecting immediately adds the entity
+function SensorPicker({
+  options,
+  loading,
+  onAdd,
+  onRefresh,
+  placeholder,
+  exclude,
+}: {
+  options: HAEntity[];
+  loading: boolean;
+  onAdd: (entityId: string) => void;
+  onRefresh: () => void;
+  placeholder: string;
+  exclude?: string[];
+}) {
+  const [inputValue, setInputValue] = useState('');
+  const [selectedValue, setSelectedValue] = useState<HAEntity | string | null>(null);
+
+  // Filter out already-selected entities
+  const availableOptions = exclude
+    ? options.filter((o) => !exclude.includes(o.entity_id))
+    : options;
+
+  const handleSelect = (entityId: string) => {
+    if (!entityId.trim()) return;
+    onAdd(entityId.trim());
+    setInputValue('');
+    setSelectedValue(null);
   };
+
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+      <Autocomplete
+        freeSolo
+        options={availableOptions}
+        getOptionLabel={(option) => typeof option === 'string' ? option : option.entity_id}
+        isOptionEqualToValue={(option, value) => option.entity_id === value}
+        value={selectedValue}
+        inputValue={inputValue}
+        onInputChange={(_e, newValue) => setInputValue(newValue)}
+        onChange={(_e, newValue) => {
+          setSelectedValue(newValue as HAEntity | string | null);
+          const id = typeof newValue === 'string' ? newValue : (newValue as HAEntity | null)?.entity_id || '';
+          handleSelect(id);
+        }}
+        loading={loading}
+        sx={{ flex: 1 }}
+        renderInput={(params) => (
+          <TextField
+            {...params}
+            size="small"
+            placeholder={placeholder}
+            slotProps={{
+              ...params.slotProps,
+              input: {
+                ...params.slotProps?.input,
+                endAdornment: (
+                  <>
+                    {loading ? <CircularProgress size={16} /> : params.slotProps?.input?.endAdornment}
+                  </>
+                ),
+              },
+            }}
+          />
+        )}
+        renderOption={(props, option) => (
+          <Box component="li" {...props}>
+            {typeof option === 'string' ? (
+              <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                {option}
+              </Typography>
+            ) : (
+              <>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                    {option.entity_id}
+                  </Typography>
+                  {option.friendly_name && option.friendly_name !== option.entity_id && (
+                    <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
+                      ({option.friendly_name})
+                    </Typography>
+                  )}
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  {option.unit_of_measurement && (
+                    <Typography variant="caption" color="text.secondary">
+                      {option.unit_of_measurement}
+                    </Typography>
+                  )}
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      color: option.state === 'unavailable' ? 'warning.main' : 'success.main',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {option.state}
+                  </Typography>
+                </Box>
+              </>
+            )}
+          </Box>
+        )}
+      />
+      <IconButton
+        size="small"
+        onClick={onRefresh}
+        disabled={loading}
+        aria-label="Refresh sensors"
+        title="Refresh sensor list"
+        sx={{ mt: 0.5 }}
+      >
+        <RefreshOutlined fontSize="small" />
+      </IconButton>
+    </Box>
+  );
+}
+
+export function EntityGroupsEditor({ groups, onChange }: Props) {
+  // Fetch sensor entities from HA
+  const { entities: sensorEntities, loading: sensorsLoading, error: sensorsError, refetch: refetchSensors } = useHAEntities('sensor');
 
   const removeSensor = (group: string, index: number) => {
     const current = groups[group as keyof EntityGroups] as string[];
@@ -65,18 +184,28 @@ export function EntityGroupsEditor({ groups, onChange }: Props) {
     });
   };
 
-  // Sunshine sources: combined add with type selector
+  const addSensorToGroup = (group: string, entityId: string) => {
+    if (!entityId.trim()) return;
+    const current = groups[group as keyof EntityGroups] as string[];
+    if (current.includes(entityId.trim())) return;
+    onChange({
+      ...groups,
+      [group]: [...current, entityId.trim()],
+    });
+  };
+
+  // Sunshine sources
   const [sunshineType, setSunshineType] = useState<'sunshine' | 'uv_index'>('uv_index');
-  const addSunshineSource = () => {
-    if (!newSensor.trim()) return;
+
+  const addSunshineSource = (entityId: string) => {
+    if (!entityId.trim()) return;
     onChange({
       ...groups,
       sunshineSources: [
         ...groups.sunshineSources,
-        { entity_id: newSensor.trim(), type: sunshineType },
+        { entity_id: entityId.trim(), type: sunshineType },
       ],
     });
-    setNewSensor('');
   };
 
   const removeSunshineSource = (index: number) => {
@@ -92,6 +221,13 @@ export function EntityGroupsEditor({ groups, onChange }: Props) {
       [key]: value,
     });
   };
+
+  // Status text
+  const sensorStatusText = sensorsError
+    ? `Cannot load sensors: ${sensorsError}`
+    : sensorsLoading
+      ? 'Loading sensors...'
+      : `${sensorEntities.length} sensors found`;
 
   return (
     <Stack spacing={3}>
@@ -137,29 +273,18 @@ export function EntityGroupsEditor({ groups, onChange }: Props) {
                     ))}
                   </Stack>
 
-                  <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
-                    <TextField
-                      size="small"
-                      sx={{ flex: 1 }}
-                      placeholder="e.g., sensor.rainfall"
-                      value={activeGroup === key ? newSensor : ''}
-                      onChange={(e) => {
-                        setActiveGroup(key);
-                        setNewSensor(e.target.value);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') addSensor(key);
-                      }}
-                    />
-                    <Button
-                      variant="contained"
-                      size="small"
-                      startIcon={<AddOutlined />}
-                      onClick={() => addSensor(key)}
-                    >
-                      Add
-                    </Button>
-                  </Stack>
+                  <SensorPicker
+                    options={sensorEntities}
+                    loading={sensorsLoading}
+                    onAdd={(entityId) => addSensorToGroup(key, entityId)}
+                    onRefresh={refetchSensors}
+                    placeholder={key === 'rainfallSensors' ? 'Select or type sensor.rainfall...' : 'Select or type sensor.temperature...'}
+                    exclude={groups[key as keyof EntityGroups] as string[]}
+                  />
+
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                    {sensorStatusText}
+                  </Typography>
 
                   {key === 'rainfallSensors' && (
                     <Box sx={{ mt: 1 }}>
@@ -204,7 +329,7 @@ export function EntityGroupsEditor({ groups, onChange }: Props) {
           ))
         }
 
-        {/* Sunshine Sources - combined UI */}
+        {/* Sunshine Sources */}
         <Grid size={{ xs: 12, md: 6 }}>
           <Card>
             <CardContent>
@@ -245,7 +370,7 @@ export function EntityGroupsEditor({ groups, onChange }: Props) {
                 Add UV index sensors (e.g. from Ambient Weather). The app converts these to sunshine hours: UV &gt; 0.5 counts as 1 hour of sun.
               </Alert>
 
-              <Stack direction="row" spacing={1}>
+              <Box sx={{ display: 'flex', gap: 1 }}>
                 <FormControl size="small" sx={{ minWidth: 120 }}>
                   <InputLabel>Source Type</InputLabel>
                   <Select
@@ -257,28 +382,19 @@ export function EntityGroupsEditor({ groups, onChange }: Props) {
                     <MenuItem value="sunshine">Sunshine</MenuItem>
                   </Select>
                 </FormControl>
-                <TextField
-                  size="small"
-                  sx={{ flex: 1 }}
-                  placeholder="e.g., sensor.uv_index"
-                  value={activeGroup === 'sunshineSources' ? newSensor : ''}
-                  onChange={(e) => {
-                    setActiveGroup('sunshineSources');
-                    setNewSensor(e.target.value);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') addSunshineSource();
-                  }}
+
+                <SensorPicker
+                  options={sensorEntities}
+                  loading={sensorsLoading}
+                  onAdd={(entityId) => addSunshineSource(entityId)}
+                  onRefresh={refetchSensors}
+                  placeholder="Select or type sensor..."
+                  exclude={groups.sunshineSources.map((s) => s.entity_id)}
                 />
-                <Button
-                  variant="contained"
-                  size="small"
-                  startIcon={<AddOutlined />}
-                  onClick={() => addSunshineSource()}
-                >
-                  Add
-                </Button>
-              </Stack>
+              </Box>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                {sensorStatusText}
+              </Typography>
             </CardContent>
           </Card>
         </Grid>

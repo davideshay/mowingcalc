@@ -147,6 +147,41 @@ export function useValidateHA() {
   return { results, haConnected, validating, validate };
 }
 
+// Fetch HA entities by domain for dropdown selection
+export function useHAEntities(domain: string) {
+  const [entities, setEntities] = useState<Array<{ entity_id: string; state: string; unit_of_measurement: string | null; friendly_name: string | null }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchEntities = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/ha/entities?domain=${domain}`, {
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await response.json();
+      if (data.error) {
+        setError(data.error);
+        setEntities([]);
+      } else {
+        setEntities(data.entities || []);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch entities');
+      setEntities([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [domain]);
+
+  useEffect(() => {
+    fetchEntities();
+  }, [fetchEntities]);
+
+  return { entities, loading, error, refetch: fetchEntities };
+}
+
 // Config update hook
 export function useConfigUpdate() {
   const [saving, setSaving] = useState(false);
