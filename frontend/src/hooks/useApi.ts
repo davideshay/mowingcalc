@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
+import type { SensorOutlierResult } from '../types/api';
 
 const API_BASE = '/api';
 
@@ -262,6 +263,42 @@ export function useMowerControl() {
   }, []);
 
   return { startMow, triggering };
+}
+
+// Sensor Health analysis hook
+export function useSensorAnalysis(hours: number = 240) {
+  const [data, setData] = useState<SensorOutlierResult | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchAnalysis = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`${API_BASE}/sensors/analysis?hours=${hours}`, {
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+      const json = await response.json();
+      setData(json);
+      return json;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setError(message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [hours]);
+
+  useEffect(() => {
+    fetchAnalysis();
+  }, [fetchAnalysis]);
+
+  return { data, loading, error, refetch: fetchAnalysis };
 }
 
 export { useApi, usePolling };

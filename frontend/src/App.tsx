@@ -6,6 +6,7 @@ import { Dashboard } from './pages/Dashboard';
 import { Configuration } from './pages/Configuration';
 import { History } from './pages/History';
 import { AlgorithmDetails } from './pages/AlgorithmDetails';
+import { SensorHealth } from './pages/SensorHealth';
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
             <Route path="/config" element={<Configuration />} />
             <Route path="/history" element={<History />} />
             <Route path="/algorithm" element={<AlgorithmDetails />} />
+            <Route path="/sensors" element={<SensorHealth />} />
           </Routes>
         </ErrorBoundary>
       </Layout>

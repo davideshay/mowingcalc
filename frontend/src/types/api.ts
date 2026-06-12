@@ -158,3 +158,63 @@ export interface GrowthHistoryPoint {
   since_last_mow: boolean;
   created_at: string;
 }
+
+// Sensor Health / Outlier Analysis types
+export interface SensorStats {
+  count: number;
+  validCount: number;
+  zeroCount: number;
+  mean: number | null;
+  std: number | null;
+  min: number | null;
+  max: number | null;
+  median: number | null;
+  p10: number | null;
+  p90: number | null;
+  dataSpanHours: number;
+}
+
+export interface OutlierFlag {
+  type: 'all_zeros' | 'stale' | 'statistical' | 'zero_dominant' | 'extreme_range';
+  severity: 'critical' | 'warning';
+  message: string;
+}
+
+export interface SensorReading {
+  timestamp: string;
+  value: number;
+}
+
+export interface SensorAnalysis {
+  entity_id: string;
+  friendly_name: string | null;
+  unit_of_measurement: string | null;
+  stats: SensorStats;
+  flags: OutlierFlag[];
+  readings: SensorReading[];
+  recommended: boolean;
+}
+
+export interface MetricAnalysis {
+  metric: 'rainfall' | 'temperature' | 'uv_index' | 'sunshine';
+  metricLabel: string;
+  sensorCount: number;
+  timeRangeHours: number;
+  groupMedian: number | null;
+  sensors: SensorAnalysis[];
+}
+
+export interface RecommendedRemoval {
+  metric: string;
+  entity_id: string;
+  friendly_name: string | null;
+  reason: string;
+}
+
+export interface SensorOutlierResult {
+  analysisTime: string;
+  metrics: MetricAnalysis[];
+  totalOutliers: number;
+  recommendedRemovals: RecommendedRemoval[];
+  error?: string;
+}

@@ -11,6 +11,7 @@ import { ConfigLoader } from './config/loader';
 import { AppConfig } from './config/schema';
 import { DecisionEngine } from './algorithm/decision-engine';
 import { AlgorithmScheduler } from './algorithm/scheduler';
+import { SensorOutlierService } from './algorithm/sensor-outlier';
 
 const logger = pino({
   level: process.env.APP_LOG_LEVEL || 'info',
@@ -21,6 +22,7 @@ const logger = pino({
 
 let engine: DecisionEngine | null = null;
 let scheduler: AlgorithmScheduler | null = null;
+let sensorOutlier: SensorOutlierService | null = null;
 let currentConfig: AppConfig | null = null;
 
 function createApp(): express.Application {
@@ -54,6 +56,7 @@ function createApp(): express.Application {
   // Initialize algorithm engine and scheduler
   engine = new DecisionEngine(db, ha, config);
   scheduler = new AlgorithmScheduler(engine);
+  sensorOutlier = ha ? new SensorOutlierService(ha, config) : null;
   currentConfig = config;
   // Clear weather cache on startup — old cached data may have rainfall
   // stored in the wrong field (temperature_c instead of rainfall_mm).
@@ -89,6 +92,7 @@ function createApp(): express.Application {
       configLoader.save(merged);
       config = configLoader.load(); // load() applies migrations + returns current version
       if (engine) engine.updateConfig(config);
+      if (sensorOutlier) sensorOutlier.updateConfig(config);
       if (currentConfig) currentConfig = config;
       // Clear weather cache when config changes (rainfall unit/aggregation may have changed)
       HAClient.clearWeatherCache(db);
@@ -107,6 +111,7 @@ function createApp(): express.Application {
       }
       config = configLoader.load();
       if (engine) engine.updateConfig(config);
+      if (sensorOutlier) sensorOutlier.updateConfig(config);
       if (currentConfig) currentConfig = config;
       // Clear weather cache when config changes (rainfall unit/aggregation may have changed)
       HAClient.clearWeatherCache(db);
@@ -489,6 +494,35 @@ function createApp(): express.Application {
     const entityResults = await Promise.all(checks);
 
     res.json({ ha_connected: true, results: entityResults });
+  });
+
+  // Sensor Health: analyze sensors for outliers
+  app.get('/api/sensors/analysis', async (req, res) => {
+    try {
+      if (!sensorOutlier || !ha) {
+        return res.json({
+          analysisTime: new Date().toISOString(),
+          metrics: [],
+          totalOutliers: 0,
+          recommendedRemovals: [],
+          error: 'HA not connected',
+        });
+      }
+      const hoursParam = req.query.hours as string | undefined;
+      const hours = hoursParam ? Math.max(24, Math.min(720, parseInt(hoursParam, 10))) : 240;
+      const metric = req.query.metric as string | undefined;
+
+      const result = await sensorOutlier.analyze(hours);
+
+      // If a specific metric was requested, filter to that metric only
+      if (metric) {
+        result.metrics = result.metrics.filter((m) => m.metric === metric);
+      }
+
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ error: 'Sensor analysis failed', details: String(err) });
+    }
   });
 
   // Serve React frontend (built static files)

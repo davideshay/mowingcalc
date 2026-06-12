@@ -22,6 +22,7 @@ import DashboardOutlined from '@mui/icons-material/DashboardOutlined';
 import SettingsOutlined from '@mui/icons-material/SettingsOutlined';
 import CalendarMonthOutlined from '@mui/icons-material/CalendarMonthOutlined';
 import PsychologyOutlined from '@mui/icons-material/PsychologyOutlined';
+import MonitorHeartOutlined from '@mui/icons-material/MonitorHeartOutlined';
 import Brightness4Outlined from '@mui/icons-material/Brightness4Outlined';
 import LightModeOutlined from '@mui/icons-material/LightModeOutlined';
 import { useColorScheme } from '@mui/material/styles';
@@ -33,6 +34,7 @@ const navItems = [
   { path: '/config', label: 'Configuration', icon: SettingsOutlined },
   { path: '/history', label: 'History', icon: CalendarMonthOutlined },
   { path: '/algorithm', label: 'Algorithm', icon: PsychologyOutlined },
+  { path: '/sensors', label: 'Sensor Health', icon: MonitorHeartOutlined },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {

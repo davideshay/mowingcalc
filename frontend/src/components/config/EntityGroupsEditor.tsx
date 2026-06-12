@@ -85,7 +85,7 @@ function SensorPicker({
   };
 
   return (
-    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, width: '100%' }}>
       <Autocomplete
         freeSolo
         options={availableOptions}
@@ -370,27 +370,33 @@ export function EntityGroupsEditor({ groups, onChange }: Props) {
                 Add UV index sensors (e.g. from Ambient Weather). The app converts these to sunshine hours: UV &gt; 0.5 counts as 1 hour of sun.
               </Alert>
 
-              <Box sx={{ display: 'flex', gap: 1 }}>
-                <FormControl size="small" sx={{ minWidth: 120 }}>
+              <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', width: '100%' }}>
+                <FormControl size="small" sx={{ minWidth: 140 }}>
                   <InputLabel>Source Type</InputLabel>
                   <Select
                     value={sunshineType}
                     label="Source Type"
                     onChange={(e) => setSunshineType(e.target.value as 'sunshine' | 'uv_index')}
                   >
-                    <MenuItem value="uv_index">UV Index</MenuItem>
-                    <MenuItem value="sunshine">Sunshine</MenuItem>
+                    <MenuItem value="uv_index" sx={{ minHeight: 36 }}>
+                      <Typography variant="body2">UV Index</Typography>
+                    </MenuItem>
+                    <MenuItem value="sunshine" sx={{ minHeight: 36 }}>
+                      <Typography variant="body2">Sunshine</Typography>
+                    </MenuItem>
                   </Select>
                 </FormControl>
 
-                <SensorPicker
-                  options={sensorEntities}
-                  loading={sensorsLoading}
-                  onAdd={(entityId) => addSunshineSource(entityId)}
-                  onRefresh={refetchSensors}
-                  placeholder="Select or type sensor..."
-                  exclude={groups.sunshineSources.map((s) => s.entity_id)}
-                />
+                <Box sx={{ flex: 1 }}>
+                  <SensorPicker
+                    options={sensorEntities}
+                    loading={sensorsLoading}
+                    onAdd={(entityId) => addSunshineSource(entityId)}
+                    onRefresh={refetchSensors}
+                    placeholder="Select or type sensor..."
+                    exclude={groups.sunshineSources.map((s) => s.entity_id)}
+                  />
+                </Box>
               </Box>
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
                 {sensorStatusText}
