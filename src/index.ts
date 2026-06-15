@@ -512,6 +512,11 @@ function createApp(): express.Application {
       const hours = hoursParam ? Math.max(24, Math.min(720, parseInt(hoursParam, 10))) : 240;
       const metric = req.query.metric as string | undefined;
 
+      // Optionally clear weather cache before analysis
+      if (req.query.clearCache === '1') {
+        HAClient.clearWeatherCache(db);
+      }
+
       const result = await sensorOutlier.analyze(hours);
 
       // If a specific metric was requested, filter to that metric only

@@ -171,7 +171,9 @@ export interface SensorStats {
   median: number | null;
   p10: number | null;
   p90: number | null;
+  total: number | null;
   dataSpanHours: number;
+  lastReadingAgeHours: number;
 }
 
 export interface OutlierFlag {

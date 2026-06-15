@@ -271,11 +271,12 @@ export function useSensorAnalysis(hours: number = 240) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchAnalysis = useCallback(async () => {
+  const fetchAnalysis = useCallback(async (clearCache = false) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${API_BASE}/sensors/analysis?hours=${hours}`, {
+      const cacheParam = clearCache ? '&clearCache=1' : '';
+      const response = await fetch(`${API_BASE}/sensors/analysis?hours=${hours}${cacheParam}`, {
         headers: { 'Content-Type': 'application/json' },
       });
       if (!response.ok) {
@@ -298,7 +299,10 @@ export function useSensorAnalysis(hours: number = 240) {
     fetchAnalysis();
   }, [fetchAnalysis]);
 
-  return { data, loading, error, refetch: fetchAnalysis };
+  const refetch = useCallback(() => fetchAnalysis(false), [fetchAnalysis]);
+  const refetchClearCache = useCallback(() => fetchAnalysis(true), [fetchAnalysis]);
+
+  return { data, loading, error, refetch, refetchClearCache };
 }
 
 export { useApi, usePolling };

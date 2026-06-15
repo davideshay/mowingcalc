@@ -17,6 +17,7 @@ import { SensorAnalysis, OutlierFlag } from '../../types/api';
 interface Props {
   sensors: SensorAnalysis[];
   unit: string;
+  metric: string;
   selectedIds: string[];
   onToggleSelect: (entityId: string) => void;
   onSelectAll: () => void;
@@ -50,6 +51,7 @@ function formatValue(val: number | null, unit: string): string {
 export function SensorHealthTable({
   sensors,
   unit,
+  metric,
   selectedIds,
   onToggleSelect,
   onSelectAll,
@@ -145,36 +147,45 @@ export function SensorHealthTable({
             </TableCell>
             <TableCell>Status</TableCell>
             <TableCell align="right">
-              <Box
-                component="span"
-                sx={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
-                onClick={() => handleSort('mean')}
-              >
-                Mean
-                <SortIcon field="mean" />
-              </Box>
+              <Tooltip title={metric === 'rainfall' ? 'Total accumulated rain over the analysis period' : 'Average reading across all data points'}>
+                <Box
+                  component="span"
+                  sx={{ cursor: 'help', display: 'inline-flex', alignItems: 'center', borderBottom: '1px dotted', borderColor: 'text.disabled' }}
+                >
+                  {metric === 'rainfall' ? 'Total' : 'Mean'}
+                </Box>
+              </Tooltip>
             </TableCell>
             <TableCell align="right">
-              <Box
-                component="span"
-                sx={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
-                onClick={() => handleSort('min')}
-              >
-                Min
-                <SortIcon field="min" />
-              </Box>
+              <Tooltip title="Smallest non-zero reading detected">
+                <Box
+                  component="span"
+                  sx={{ cursor: 'help', display: 'inline-flex', alignItems: 'center', borderBottom: '1px dotted', borderColor: 'text.disabled' }}
+                >
+                  Min
+                </Box>
+              </Tooltip>
             </TableCell>
             <TableCell align="right">
-              <Box
-                component="span"
-                sx={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
-                onClick={() => handleSort('max')}
-              >
-                Max
-                <SortIcon field="max" />
-              </Box>
+              <Tooltip title="Largest single reading detected">
+                <Box
+                  component="span"
+                  sx={{ cursor: 'help', display: 'inline-flex', alignItems: 'center', borderBottom: '1px dotted', borderColor: 'text.disabled' }}
+                >
+                  Max
+                </Box>
+              </Tooltip>
             </TableCell>
-            <TableCell align="right">Data</TableCell>
+            <TableCell align="right">
+              <Tooltip title="Non-zero readings / total readings (5-min intervals)">
+                <Box
+                  component="span"
+                  sx={{ cursor: 'help', display: 'inline-flex', alignItems: 'center', borderBottom: '1px dotted', borderColor: 'text.disabled' }}
+                >
+                  Readings
+                </Box>
+              </Tooltip>
+            </TableCell>
             <TableCell>Flags</TableCell>
           </TableRow>
         </TableHead>
@@ -220,7 +231,9 @@ export function SensorHealthTable({
                 </TableCell>
                 <TableCell>{severityChip(severity)}</TableCell>
                 <TableCell align="right" sx={{ fontFamily: 'monospace', fontSize: '0.8125rem' }}>
-                  {formatValue(sensor.stats.mean, unit)}
+                  {metric === 'rainfall'
+                    ? formatValue(sensor.stats.total, unit)
+                    : formatValue(sensor.stats.mean, unit)}
                 </TableCell>
                 <TableCell align="right" sx={{ fontFamily: 'monospace', fontSize: '0.8125rem' }}>
                   {formatValue(sensor.stats.min, unit)}

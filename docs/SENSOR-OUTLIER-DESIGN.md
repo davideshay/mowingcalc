@@ -114,14 +114,15 @@ For each sensor's time series:
 - Count total readings, valid (non-null, non-zero), and zero readings.
 - Compute mean, std, min, max, median, p10, p90 over valid readings.
 - Compute data span (hours between first and last reading).
+- Compute last reading age (hours since the most recent reading).
 
 **Phase 3 -- Outlier Detection** (four independent checks, any one fires a flag)
 
 1. **All-zeros check** (`all_zeros`, critical): `validCount === 0` or `zeroCount / count > 0.95`
    - Sensor reports zeros for all or nearly all data points.
 
-2. **Stale data check** (`stale`, critical): `dataSpanHours < hours * 0.5`
-   - Sensor has stopped reporting. Less than half the expected data window.
+2. **Stale data check** (`stale`, critical): `lastReadingAgeHours > 24`
+   - Sensor's most recent reading is older than 24 hours. Newly added sensors with recent data are NOT flagged — only sensors that have genuinely stopped reporting.
 
 3. **Zero-dominant check** (`zero_dominant`, warning): `zeroCount / count > 0.5` AND `validCount > 0`
    - Sensor reports zeros for more than half the time but has some valid data.

@@ -31,6 +31,7 @@ import WbSunny from '@mui/icons-material/WbSunny';
 import WbCloudy from '@mui/icons-material/WbCloudy';
 import RefreshOutlined from '@mui/icons-material/RefreshOutlined';
 import DeleteOutlineOutlined from '@mui/icons-material/DeleteOutlineOutlined';
+import CachedOutlined from '@mui/icons-material/CachedOutlined';
 
 interface MetricConfig {
   unit: string;
@@ -62,7 +63,7 @@ const METRIC_CONFIG: Record<string, MetricConfig> = {
 };
 
 export function SensorHealth() {
-  const { data: analysis, loading, error, refetch } = useSensorAnalysis(240);
+  const { data: analysis, loading, error, refetch, refetchClearCache } = useSensorAnalysis(240);
   const { data: config } = useConfig();
   const { updateConfig } = useConfigUpdate();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -217,7 +218,7 @@ export function SensorHealth() {
               <Typography variant="subtitle1" component="h2" sx={{ mb: 2 }}>
                 {mConfig.label} - Per-Sensor Time Series
               </Typography>
-              <SensorTimeSeries sensors={metric.sensors} unit={unit} />
+              <SensorTimeSeries sensors={metric.sensors} unit={unit} metric={metric.metric} />
             </CardContent>
           </Card>
 
@@ -248,6 +249,7 @@ export function SensorHealth() {
                 <SensorHealthTable
                   sensors={metric.sensors}
                   unit={unit}
+                  metric={metric.metric}
                   selectedIds={Array.from(selectedIds).filter((id) =>
                     metric.sensors.some((s) => s.entity_id === id),
                   )}
@@ -300,6 +302,16 @@ export function SensorHealth() {
               disabled={selectedCount === 0 || removing}
             >
               {removing ? 'Removing...' : `Remove Selected (${selectedCount})`}
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<CachedOutlined />}
+              onClick={() => {
+                refetchClearCache();
+                toast.success('Cache cleared, refreshing...');
+              }}
+            >
+              Clear Cache & Refresh
             </Button>
             <Button
               variant="outlined"

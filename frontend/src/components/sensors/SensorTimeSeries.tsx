@@ -22,13 +22,19 @@ import { SensorAnalysis } from '../../types/api';
 interface Props {
   sensors: SensorAnalysis[];
   unit: string;
+  metric?: 'rainfall' | 'temperature' | 'uv_index' | 'sunshine';
 }
 
 /**
  * Aggregate 5-min readings to hourly buckets.
  * Reduces ~2880 points to ~240 for 10-day window.
+ * For accumulation metrics (rainfall, sunshine), SUM the bucket values.
+ * For instantaneous metrics (temperature, UV), AVERAGE them.
  */
-function aggregateToHourly(readings: Array<{ timestamp: string; value: number }>): Array<{ time: string; value: number }> {
+function aggregateToHourly(
+  readings: Array<{ timestamp: string; value: number }>,
+  sum: boolean = false,
+): Array<{ time: string; value: number }> {
   const hourlyMap = new Map<string, number[]>();
 
   for (const r of readings) {
@@ -43,18 +49,24 @@ function aggregateToHourly(readings: Array<{ timestamp: string; value: number }>
   return Array.from(hourlyMap.entries())
     .map(([time, values]) => ({
       time,
-      value: values.reduce((a, b) => a + b, 0) / values.length,
+      value: sum
+        ? values.reduce((a, b) => a + b, 0)
+        : values.reduce((a, b) => a + b, 0) / values.length,
     }))
     .sort((a, b) => a.time.localeCompare(b.time));
 }
 
 /** Build a merged dataset with all sensors aligned by time. */
-function buildChartData(sensors: SensorAnalysis[]): Record<string, unknown>[] {
+function buildChartData(sensors: SensorAnalysis[], metric?: string): Record<string, unknown>[] {
   // Collect all hourly time keys
   const allTimeKeys = new Set<string>();
+  // Rainfall and sunshine are accumulation values — SUM 5-min buckets.
+  // Temperature and UV are instantaneous — AVERAGE them.
+  const sumAggregation = metric === 'rainfall' || metric === 'sunshine';
   const sensorHourly = sensors.map((sensor) => {
     const hourly = aggregateToHourly(
       sensor.readings.map((r) => ({ timestamp: r.timestamp, value: r.value })),
+      sumAggregation,
     );
     hourly.forEach((h) => allTimeKeys.add(h.time));
     return { entity_id: sensor.entity_id, hourly };
@@ -120,11 +132,11 @@ function CustomLegend({ sensors, colorMap }: { sensors: SensorAnalysis[]; colorM
   );
 }
 
-export function SensorTimeSeries({ sensors, unit }: Props) {
+export function SensorTimeSeries({ sensors, unit, metric }: Props) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
 
-  const chartData = useMemo(() => buildChartData(sensors), [sensors]);
+  const chartData = useMemo(() => buildChartData(sensors, metric), [sensors, metric]);
 
   // Build color map: entity short name -> color
   const colorMap = useMemo(() => {
