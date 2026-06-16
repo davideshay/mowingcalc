@@ -8,7 +8,7 @@ import pino from 'pino';
 import { HAClient } from './ha/client';
 import { initializeDatabase } from './db/initialize';
 import { ConfigLoader } from './config/loader';
-import { AppConfig } from './config/schema';
+import { AppConfig, getSensorEntityId } from './config/schema';
 import { DecisionEngine } from './algorithm/decision-engine';
 import { AlgorithmScheduler } from './algorithm/scheduler';
 import { SensorOutlierService } from './algorithm/sensor-outlier';
@@ -433,11 +433,11 @@ function createApp(): express.Application {
     const entitiesToCheck: Array<{ entity_id: string; label: string }> = [];
 
     // Weather sensors
-    for (const id of config.entityGroups.rainfallSensors) {
-      entitiesToCheck.push({ entity_id: id, label: 'Rainfall' });
+    for (const s of config.entityGroups.rainfallSensors) {
+      entitiesToCheck.push({ entity_id: getSensorEntityId(s), label: 'Rainfall' });
     }
-    for (const id of config.entityGroups.temperatureSensors) {
-      entitiesToCheck.push({ entity_id: id, label: 'Temperature' });
+    for (const s of config.entityGroups.temperatureSensors) {
+      entitiesToCheck.push({ entity_id: getSensorEntityId(s), label: 'Temperature' });
     }
     for (const source of config.entityGroups.sunshineSources) {
       entitiesToCheck.push({ entity_id: source.entity_id, label: `Sunshine (${source.type})` });

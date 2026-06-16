@@ -21,6 +21,7 @@ import { SensorTimeSeries } from '../components/sensors/SensorTimeSeries';
 import { SensorHealthTable } from '../components/sensors/SensorHealthTable';
 import { MetricSummary } from '../components/sensors/MetricSummary';
 import { useSensorAnalysis, useConfig, useConfigUpdate } from '../hooks/useApi';
+import type { WeatherSensorEntry } from '../types/api';
 import { lengthUnit } from '../utils/units';
 import { toast } from 'react-hot-toast';
 
@@ -122,11 +123,13 @@ export function SensorHealth() {
         const entityId = candidate.entity_id;
         if (candidate.metric === 'Rainfall') {
           updatedGroups.rainfallSensors = (updatedGroups.rainfallSensors || []).filter(
-            (id: string) => id !== entityId,
+            (s: WeatherSensorEntry) =>
+              (typeof s === 'string' ? s : s.entity_id) !== entityId,
           );
         } else if (candidate.metric === 'Temperature') {
           updatedGroups.temperatureSensors = (updatedGroups.temperatureSensors || []).filter(
-            (id: string) => id !== entityId,
+            (s: WeatherSensorEntry) =>
+              (typeof s === 'string' ? s : s.entity_id) !== entityId,
           );
         } else if (candidate.metric === 'UV Index') {
           updatedGroups.sunshineSources = (updatedGroups.sunshineSources || []).filter(

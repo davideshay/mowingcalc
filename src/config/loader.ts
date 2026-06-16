@@ -235,7 +235,7 @@ export class ConfigLoader {
   ): Record<string, unknown> {
     const versionKey = 'configVersion';
     const savedVersion = config[versionKey] as number | undefined;
-    const currentVersion = 2;
+    const currentVersion = 3;
 
     if ((savedVersion ?? 0) >= currentVersion) {
       return config;
@@ -248,6 +248,32 @@ export class ConfigLoader {
       if (growthModel && typeof growthModel.baseRatePerDay === 'number') {
         if (growthModel.baseRatePerDay < 1.5) {
           growthModel.baseRatePerDay = defaultGM.baseRatePerDay as number;
+        }
+      }
+    }
+
+    // Migration v2 -> v3: convert rainfallSensors/temperatureSensors from string[]
+    // to { entity_id, added_at }[]. Plain strings get current timestamp as added_at.
+    if ((savedVersion ?? 0) < 3) {
+      const eg = config.entityGroups as Record<string, unknown> | undefined;
+      if (eg) {
+        for (const key of ['rainfallSensors', 'temperatureSensors']) {
+          const arr = eg[key];
+          if (Array.isArray(arr)) {
+            eg[key] = arr.map((item: unknown) => {
+              if (typeof item === 'string') {
+                return { entity_id: item, added_at: new Date().toISOString() };
+              }
+              if (item && typeof item === 'object' && 'entity_id' in item) {
+                const obj = item as Record<string, unknown>;
+                if (!obj.added_at) {
+                  obj.added_at = new Date().toISOString();
+                }
+                return obj;
+              }
+              return item;
+            });
+          }
         }
       }
     }

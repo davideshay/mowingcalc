@@ -65,6 +65,9 @@ export interface SunshineSource {
   type: 'sunshine' | 'uv_index';
 }
 
+// Weather sensor entry: can be a plain string (legacy) or an object with added_at.
+export type WeatherSensorEntry = string | { entity_id: string; added_at?: string };
+
 export interface ConfigResponse {
   readonlyMode: boolean;
   displayUnits: 'metric' | 'imperial';
@@ -100,9 +103,9 @@ export interface ConfigResponse {
   mowingWindows: Record<string, Array<{ start: string; end: string }>>;
   lastMowTimeOverride: string | null;
   entityGroups: {
-    rainfallSensors: string[];
+    rainfallSensors: WeatherSensorEntry[];
     rainfallUnit: 'millimeters' | 'inches';
-    temperatureSensors: string[];
+    temperatureSensors: WeatherSensorEntry[];
     temperatureUnit: 'celsius' | 'fahrenheit';
     sunshineSources: Array<{ entity_id: string; type: 'sunshine' | 'uv_index' }>;
     weatherForecastEntity: string;
@@ -177,7 +180,7 @@ export interface SensorStats {
 }
 
 export interface OutlierFlag {
-  type: 'all_zeros' | 'stale' | 'statistical' | 'zero_dominant' | 'extreme_range';
+  type: 'all_zeros' | 'stale' | 'statistical' | 'zero_dominant' | 'extreme_range' | 'missed_rain';
   severity: 'critical' | 'warning';
   message: string;
 }

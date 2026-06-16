@@ -1,7 +1,7 @@
 import pino from 'pino';
 import Database from 'better-sqlite3';
 import { HAClient, AggregatedWeatherData } from '../ha/client';
-import { AppConfig } from '../config/schema';
+import { AppConfig, getSensorEntityId } from '../config/schema';
 
 const logger = pino({ level: 'info' });
 
@@ -67,9 +67,11 @@ export class WeatherService {
       .map((s: any) => s.entity_id);
 
     // Fetch all metrics in parallel (rainfall, temperature, sunshine sources)
+    const rainfallEntityIds: string[] = entityGroups.rainfallSensors.map((s) => getSensorEntityId(s)).filter(Boolean);
+    const tempEntityIds: string[] = entityGroups.temperatureSensors.map((s) => getSensorEntityId(s)).filter(Boolean);
     const [rainData, tempData, sunData, uvData] = await Promise.all([
-      this.fetchMetricWithCache('rainfall', entityGroups.rainfallSensors, startTime, now, weatherCacheTTL),
-      this.fetchMetricWithCache('temperature', entityGroups.temperatureSensors, startTime, now, weatherCacheTTL),
+      this.fetchMetricWithCache('rainfall', rainfallEntityIds, startTime, now, weatherCacheTTL),
+      this.fetchMetricWithCache('temperature', tempEntityIds, startTime, now, weatherCacheTTL),
       this.fetchMetricWithCache('sunshine', sunshineEntityIds, startTime, now, weatherCacheTTL),
       this.fetchMetricWithCache('uv_index', uvEntityIds, startTime, now, weatherCacheTTL),
     ]);
@@ -178,8 +180,8 @@ export class WeatherService {
   private getEntityIdForMetric(metric: string): string {
     const entityIds = this.config.entityGroups;
     switch (metric) {
-      case 'rainfall': return entityIds.rainfallSensors.join(',');
-      case 'temperature': return entityIds.temperatureSensors.join(',');
+      case 'rainfall': return entityIds.rainfallSensors.map((s) => getSensorEntityId(s)).join(',');
+      case 'temperature': return entityIds.temperatureSensors.map((s) => getSensorEntityId(s)).join(',');
       case 'sunshine': return (entityIds.sunshineSources || [])
         .filter((s: any) => s.type === 'sunshine')
         .map((s: any) => s.entity_id)

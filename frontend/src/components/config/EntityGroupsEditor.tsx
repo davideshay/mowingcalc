@@ -19,6 +19,7 @@ import Autocomplete from '@mui/material/Autocomplete';
 import CircularProgress from '@mui/material/CircularProgress';
 import RefreshOutlined from '@mui/icons-material/RefreshOutlined';
 import { useHAEntities } from '../../hooks/useApi';
+import type { WeatherSensorEntry } from '../../types/api';
 
 interface SunshineSource {
   entity_id: string;
@@ -26,9 +27,9 @@ interface SunshineSource {
 }
 
 interface EntityGroups {
-  rainfallSensors: string[];
+  rainfallSensors: WeatherSensorEntry[];
   rainfallUnit: 'millimeters' | 'inches';
-  temperatureSensors: string[];
+  temperatureSensors: WeatherSensorEntry[];
   temperatureUnit: 'celsius' | 'fahrenheit';
   sunshineSources: SunshineSource[];
   weatherForecastEntity: string;
@@ -38,6 +39,11 @@ interface EntityGroups {
   mowerEntity: string;
   lastMowTimeEntity: string;
   sunEntity: string;
+}
+
+/** Extract entity_id from a WeatherSensorEntry (handles string or object). */
+function sensorId(entry: WeatherSensorEntry): string {
+  return typeof entry === 'string' ? entry : entry.entity_id;
 }
 
 interface Props {
@@ -177,7 +183,7 @@ export function EntityGroupsEditor({ groups, onChange }: Props) {
   const { entities: sensorEntities, loading: sensorsLoading, error: sensorsError, refetch: refetchSensors } = useHAEntities('sensor');
 
   const removeSensor = (group: string, index: number) => {
-    const current = groups[group as keyof EntityGroups] as string[];
+    const current = groups[group as keyof EntityGroups] as WeatherSensorEntry[];
     onChange({
       ...groups,
       [group]: current.filter((_, i) => i !== index),
@@ -186,11 +192,17 @@ export function EntityGroupsEditor({ groups, onChange }: Props) {
 
   const addSensorToGroup = (group: string, entityId: string) => {
     if (!entityId.trim()) return;
-    const current = groups[group as keyof EntityGroups] as string[];
-    if (current.includes(entityId.trim())) return;
+    const current = groups[group as keyof EntityGroups] as WeatherSensorEntry[];
+    // Check if already exists (compare by entity_id)
+    if (current.some((s) => sensorId(s) === entityId.trim())) return;
+    // Auto-timestamp new sensor entry
+    const entry: { entity_id: string; added_at: string } = {
+      entity_id: entityId.trim(),
+      added_at: new Date().toISOString(),
+    };
     onChange({
       ...groups,
-      [group]: [...current, entityId.trim()],
+      [group]: [...current, entry],
     });
   };
 
@@ -253,13 +265,13 @@ export function EntityGroupsEditor({ groups, onChange }: Props) {
                   </Box>
 
                   <Stack spacing={1} sx={{ mb: 2 }}>
-                    {(groups[key as keyof EntityGroups] as string[]).map((sensor, index) => (
+                    {(groups[key as keyof EntityGroups] as WeatherSensorEntry[]).map((sensor, index) => (
                       <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <Typography
                           variant="body2"
                           sx={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                         >
-                          {sensor}
+                          {sensorId(sensor)}
                         </Typography>
                         <IconButton
                           size="small"
@@ -279,7 +291,7 @@ export function EntityGroupsEditor({ groups, onChange }: Props) {
                     onAdd={(entityId) => addSensorToGroup(key, entityId)}
                     onRefresh={refetchSensors}
                     placeholder={key === 'rainfallSensors' ? 'Select or type sensor.rainfall...' : 'Select or type sensor.temperature...'}
-                    exclude={groups[key as keyof EntityGroups] as string[]}
+                    exclude={(groups[key as keyof EntityGroups] as WeatherSensorEntry[]).map(sensorId)}
                   />
 
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>

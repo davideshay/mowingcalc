@@ -76,13 +76,25 @@ const SunshineSourceSchema = z.object({
   type: z.enum(['sunshine', 'uv_index']),
 });
 
+// Weather sensor entry: can be a plain string (legacy) or an object with added_at timestamp.
+// When a sensor is added to config, added_at is auto-set to the current time.
+// The sensor-outlier check uses this to avoid flagging "missed rain" for rain events
+// that occurred before the sensor was configured.
+const WeatherSensorSchema = z.union([
+  z.object({
+    entity_id: z.string(),
+    added_at: z.string().datetime().optional(),
+  }),
+  z.string(),
+]);
+
 const EntityGroupsSchema = z.object({
   // Historical weather sensors (past 7 days, hourly)
-  rainfallSensors: z.array(z.string()).default([]),
+  rainfallSensors: z.array(WeatherSensorSchema).default([]),
   // Rainfall unit reported by sensors ('millimeters' or 'inches')
   // WeatherFlow AWS hourly_rain sensors report in inches per hour
   rainfallUnit: z.enum(['millimeters', 'inches']).default('millimeters'),
-  temperatureSensors: z.array(z.string()).default([]),
+  temperatureSensors: z.array(WeatherSensorSchema).default([]),
   // Temperature unit reported by sensors ('celsius' or 'fahrenheit')
   // WeatherFlow AWS sensors report in Fahrenheit by default
   temperatureUnit: z.enum(['celsius', 'fahrenheit']).default('celsius'),
@@ -172,6 +184,42 @@ export const AppConfigSchema = z.object({
 });
 
 export type AppConfig = z.infer<typeof AppConfigSchema>;
+
+/**
+ * Extract entity_id from a weather sensor entry.
+ * Handles both legacy string format and { entity_id, added_at } object format.
+ */
+export function getSensorEntityId(entry: unknown): string {
+  if (typeof entry === 'string') return entry;
+  if (entry && typeof entry === 'object') {
+    return (entry as { entity_id?: string }).entity_id ?? '';
+  }
+  return '';
+}
+
+/**
+ * Get added_at timestamp from a weather sensor entry, or undefined if legacy string format.
+ */
+export function getSensorAddedAt(entry: unknown): string | undefined {
+  if (typeof entry === 'string') return undefined;
+  if (entry && typeof entry === 'object') {
+    return (entry as { added_at?: string }).added_at;
+  }
+  return undefined;
+}
+
+/**
+ * Normalize a weather sensor entry to { entity_id, added_at }.
+ * Auto-timestamps new entries that lack added_at.
+ */
+export function normalizeWeatherSensor(entry: unknown, now?: string): { entity_id: string; added_at: string } {
+  const id = getSensorEntityId(entry);
+  let added_at = getSensorAddedAt(entry);
+  if (!added_at) {
+    added_at = now ?? new Date().toISOString();
+  }
+  return { entity_id: id, added_at };
+}
 
 // Validate and parse config, falling back to defaults
 export function parseConfig(input: unknown): AppConfig {

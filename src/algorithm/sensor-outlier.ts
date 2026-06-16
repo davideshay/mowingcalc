@@ -1,6 +1,6 @@
 import pino from 'pino';
 import { HAClient, HAEntityState } from '../ha/client';
-import { AppConfig } from '../config/schema';
+import { AppConfig, getSensorEntityId, getSensorAddedAt } from '../config/schema';
 
 const logger = pino({ level: 'info' });
 
@@ -195,7 +195,7 @@ export class SensorOutlierService {
    * Analyze a single metric group (e.g., all rainfall sensors).
    */
   private async analyzeMetricGroup(
-    group: { metric: string; label: string; entityIds: string[] },
+    group: { metric: string; label: string; entityIds: string[]; addedAtMap: Map<string, Date> },
     startTime: Date,
     endTime: Date,
     hours: number,
@@ -328,7 +328,7 @@ export class SensorOutlierService {
     }
 
     // Phase 3: Outlier detection
-    const flagged = this.detectOutliers(sensors, hours, group.metric);
+    const flagged = this.detectOutliers(sensors, hours, group.metric, group.addedAtMap);
     flagged.forEach((f) => {
       const sensor = sensors.find((s) => s.entity_id === f.entity_id);
       if (sensor) {
@@ -369,53 +369,62 @@ export class SensorOutlierService {
 
   /**
    * Resolve entity IDs for each metric type from config.
+   * Returns entityIds plus an addedAtMap (entity_id -> Date) for sensors
+   * that have an added_at timestamp in the config.
    */
-  private resolveMetricGroups(): Array<{ metric: 'rainfall' | 'temperature' | 'uv_index' | 'sunshine'; label: string; entityIds: string[] }> {
-    const groups: Array<{ metric: 'rainfall' | 'temperature' | 'uv_index' | 'sunshine'; label: string; entityIds: string[] }> = [];
+  private resolveMetricGroups(): Array<{ metric: 'rainfall' | 'temperature' | 'uv_index' | 'sunshine'; label: string; entityIds: string[]; addedAtMap: Map<string, Date> }> {
+    const groups: Array<{ metric: 'rainfall' | 'temperature' | 'uv_index' | 'sunshine'; label: string; entityIds: string[]; addedAtMap: Map<string, Date> }> = [];
 
     // Rainfall sensors
     const rainfallSensors = this.config.entityGroups.rainfallSensors || [];
-    if (rainfallSensors.length > 0) {
-      groups.push({ metric: 'rainfall', label: 'Rainfall', entityIds: rainfallSensors });
-    } else {
-      groups.push({ metric: 'rainfall', label: 'Rainfall', entityIds: [] });
+    const rainfallEntityIds: string[] = rainfallSensors.map((s) => getSensorEntityId(s)).filter((id) => id);
+    const rainfallAddedAt = new Map<string, Date>();
+    for (const s of rainfallSensors) {
+      const at = getSensorAddedAt(s);
+      if (at) {
+        rainfallAddedAt.set(getSensorEntityId(s), new Date(at));
+      }
     }
+    groups.push({ metric: 'rainfall', label: 'Rainfall', entityIds: rainfallEntityIds, addedAtMap: rainfallAddedAt });
 
     // Temperature sensors
     const temperatureSensors = this.config.entityGroups.temperatureSensors || [];
-    if (temperatureSensors.length > 0) {
-      groups.push({ metric: 'temperature', label: 'Temperature', entityIds: temperatureSensors });
-    } else {
-      groups.push({ metric: 'temperature', label: 'Temperature', entityIds: [] });
+    const tempEntityIds: string[] = temperatureSensors.map((s) => getSensorEntityId(s)).filter((id) => id);
+    const tempAddedAt = new Map<string, Date>();
+    for (const s of temperatureSensors) {
+      const at = getSensorAddedAt(s);
+      if (at) {
+        tempAddedAt.set(getSensorEntityId(s), new Date(at));
+      }
     }
+    groups.push({ metric: 'temperature', label: 'Temperature', entityIds: tempEntityIds, addedAtMap: tempAddedAt });
 
     // Sunshine sources (sunshine type)
     const sunshineSources = this.config.entityGroups.sunshineSources || [];
     const sunshineIds = sunshineSources
       .filter((s: any) => s.type === 'sunshine')
       .map((s: any) => s.entity_id);
-    groups.push({ metric: 'sunshine', label: 'Sunshine', entityIds: sunshineIds });
+    groups.push({ metric: 'sunshine', label: 'Sunshine', entityIds: sunshineIds, addedAtMap: new Map() });
 
     // UV Index sources
     const uvIds = sunshineSources
       .filter((s: any) => s.type === 'uv_index')
       .map((s: any) => s.entity_id);
-    if (uvIds.length > 0) {
-      groups.push({ metric: 'uv_index', label: 'UV Index', entityIds: uvIds });
-    } else {
-      groups.push({ metric: 'uv_index', label: 'UV Index', entityIds: [] });
-    }
+    groups.push({ metric: 'uv_index', label: 'UV Index', entityIds: uvIds, addedAtMap: new Map() });
 
     return groups;
   }
 
   /**
    * Run all outlier detection checks on a set of sensors.
+   * @param addedAtMap - Map of entity_id -> Date when sensor was added to config.
+   *   Used to exclude rain events that occurred before a sensor was configured.
    */
   private detectOutliers(
     sensors: SensorAnalysis[],
     hours: number,
     metric: string,
+    addedAtMap: Map<string, Date> = new Map(),
   ): Array<{ entity_id: string; flag: OutlierFlag }> {
     const flags: Array<{ entity_id: string; flag: OutlierFlag }> = [];
 
@@ -605,6 +614,9 @@ export class SensorOutlierService {
     // Aggregate at the hourly level to handle spatial variability (sensors may be 5km apart
     // and experience slightly different weather at the 5-min level).
     // Exclude stale sensors from the majority check.
+    // Only compare rain events that occurred AFTER each sensor was added to the config
+    // (tracked via added_at timestamp). This avoids false positives when a sensor
+    // was added mid-period and the other sensors already had historical data.
     if (metric === 'rainfall') {
       const rainThreshold = 0.01; // in — skip very light rain / sensor noise
 
@@ -632,15 +644,34 @@ export class SensorOutlierService {
       }
 
       for (const sensor of activeSensors) {
+        // When was this sensor added? If no added_at, assume full window.
+        const sensorAddedAt = addedAtMap.get(sensor.entity_id);
+        // Truncate added_at to hour boundary for fair comparison
+        const addedAtHour = sensorAddedAt
+          ? Math.floor(sensorAddedAt.getTime() / 3600000) * 3600000
+          : 0;
+
         let totalRainEvents = 0;
         let missedEvents = 0;
 
-        for (const [, hourValues] of hourlyBuckets) {
-          // A rain event: majority of active sensors report rain > threshold in this hour
-          const sensorsWithRain = [...hourValues.entries()].filter(
+        for (const [hourKey, hourValues] of hourlyBuckets) {
+          // Skip hours before this sensor was added to the config
+          if (hourKey < addedAtHour) continue;
+
+          // Determine which sensors were active at this hour
+          // (added before or during this hour, or have no added_at = always active)
+          const activeAtHour = [...hourValues.entries()].filter(([eid]) => {
+            const otherAddedAt = addedAtMap.get(eid);
+            if (!otherAddedAt) return true; // no added_at = always active
+            const otherAddedHour = Math.floor(otherAddedAt.getTime() / 3600000) * 3600000;
+            return otherAddedHour <= hourKey;
+          });
+
+          // A rain event: majority of sensors active at this hour report rain > threshold
+          const sensorsWithRain = activeAtHour.filter(
             ([_eid, val]) => val > rainThreshold,
           );
-          const isRainEvent = sensorsWithRain.length > activeSensors.length / 2;
+          const isRainEvent = sensorsWithRain.length > activeAtHour.length / 2;
           if (!isRainEvent) continue;
 
           totalRainEvents++;
