@@ -364,8 +364,8 @@ export class DecisionEngine {
     );
 
     const growthStmt = this.db.prepare(`
-      INSERT INTO growth_history (timestamp, growth_mm, since_last_mow)
-      VALUES (?, ?, 1)
+      INSERT INTO growth_history (timestamp, growth_mm)
+      VALUES (?, ?)
     `);
     growthStmt.run(new Date().toISOString(), growth.growth_since_mow_mm);
   }
@@ -388,13 +388,12 @@ export class DecisionEngine {
 
     // Record mow start event
     const eventStmt = this.db.prepare(`
-      INSERT INTO mow_events (started_at, duration_minutes, decision_reason)
-      VALUES (?, ?, ?)
+      INSERT INTO mow_events (started_at, duration_minutes)
+      VALUES (?, ?)
     `);
     eventStmt.run(
       new Date().toISOString(),
       this.config.avgMowingDuration,
-      'Algorithm triggered mow',
     );
 
     switch (mowerType) {

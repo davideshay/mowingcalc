@@ -144,30 +144,29 @@ export class WeatherService {
     const entityId = this.getEntityIdForMetric(metric);
 
     const rows = (this.db.prepare(`
-      SELECT data, entity_id, timestamp FROM weather_cache
+      SELECT data, entity_id, timestamp, ttl_minutes FROM weather_cache
       WHERE metric = ?
-        AND created_at > datetime('now', '-' || ? || ' minutes')
-      ORDER BY created_at DESC
-    `).all(
+    `).get(
       metric,
-      ttlMinutes,
-    ) as Array<{ data: string; entity_id: string; timestamp: string }>);
+    ) as { data: string; entity_id: string; timestamp: string; ttl_minutes: number } | undefined);
 
-    for (const row of rows) {
-      // Validate entity IDs match (prevents stale data after config change)
-      if (row.entity_id !== entityId) continue;
+    if (!rows) return null;
 
-      // Validate time window covers our request (with tolerance for drift).
-      // Cache entry covers us if its window fully contains our requested window.
-      const cachedStart = new Date(row.timestamp).getTime();
-      // Approximate cached end: start + (hours of data in the cached result)
-      const cachedEnd = cachedStart + ttlMinutes * 60 * 1000;
-      if (cachedStart <= startTime.getTime() && cachedEnd >= endTime.getTime()) {
-        try {
-          return JSON.parse(row.data) as AggregatedWeatherData[];
-        } catch {
-          return null;
-        }
+    // Check TTL — cached entry is valid only if it was stored recently enough
+    const cachedTs = new Date(rows.timestamp).getTime();
+    const ttlMs = rows.ttl_minutes * 60 * 1000;
+    if (Date.now() - cachedTs > ttlMs) return null;
+
+    // Validate entity IDs match (prevents stale data after config change)
+    if (rows.entity_id !== entityId) return null;
+
+    // Validate time window covers our request
+    const cachedEnd = cachedTs + ttlMs;
+    if (cachedTs <= startTime.getTime() && cachedEnd >= endTime.getTime()) {
+      try {
+        return JSON.parse(rows.data) as AggregatedWeatherData[];
+      } catch {
+        return null;
       }
     }
 
@@ -205,7 +204,7 @@ export class WeatherService {
     data: AggregatedWeatherData[],
   ): void {
     const stmt = this.db.prepare(`
-      INSERT INTO weather_cache (metric, entity_id, timestamp, data, ttl_minutes)
+      REPLACE INTO weather_cache (metric, entity_id, timestamp, data, ttl_minutes)
       VALUES (?, ?, ?, ?, ?)
     `);
 
