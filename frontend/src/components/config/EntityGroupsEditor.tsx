@@ -195,11 +195,23 @@ export function EntityGroupsEditor({ groups, onChange }: Props) {
     const current = groups[group as keyof EntityGroups] as WeatherSensorEntry[];
     // Check if already exists (compare by entity_id)
     if (current.some((s) => sensorId(s) === entityId.trim())) return;
+    // Detect unit from HA entity
+    const haEntity = sensorEntities.find((e) => e.entity_id === entityId.trim());
+    const unitOfMeasurement = haEntity?.unit_of_measurement || '';
+    let unit: string | undefined;
+    if (group === 'temperatureSensors') {
+      unit = unitOfMeasurement.includes('F') ? 'fahrenheit' : 'celsius';
+    } else if (group === 'rainfallSensors') {
+      unit = unitOfMeasurement.includes('in') ? 'inches' : 'millimeters';
+    }
     // Auto-timestamp new sensor entry
-    const entry: { entity_id: string; added_at: string } = {
+    const entry: { entity_id: string; added_at: string; unit?: string } = {
       entity_id: entityId.trim(),
       added_at: new Date().toISOString(),
     };
+    if (unit) {
+      entry.unit = unit;
+    }
     onChange({
       ...groups,
       [group]: [...current, entry],

@@ -21,8 +21,17 @@ export class ConfigLoader {
     const stmt = this.db.prepare(
       'INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)'
     );
+    const existingKeysRaw = this.db.prepare('SELECT key FROM config').all() as Array<{ key: string }>;
+    const existingKeyNames = existingKeysRaw.map(r => r.key);
 
     for (const [key, value] of Object.entries(DEFAULT_CONFIG)) {
+      // Skip object-type defaults if flattened child keys exist
+      // (the flat keys contain the actual user data that needs migration)
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        const hasChildKeys = existingKeyNames.some((k) => k.startsWith(key + '.'));
+        if (hasChildKeys) continue;
+      }
+
       stmt.run(key, JSON.stringify(value));
     }
   }
@@ -42,7 +51,12 @@ export class ConfigLoader {
 
     // Migration: convert old flattened keys (entityGroups.rainfallSensors.0, etc.)
     // to new JSON blob format (entityGroups = {...}).
-    dbValues = this.migrateFlattenedKeys(dbValues);
+    // This is a ONE-TIME migration — only runs when configVersion < 3.
+    // configVersion >= 3 means migration already completed (flat keys cleaned up).
+    const savedVersion = (dbValues['configVersion'] as number) ?? 0;
+    if (savedVersion < 3) {
+      dbValues = this.migrateFlattenedKeys(dbValues);
+    }
 
     // Deep-merge DB values with defaults (DB wins for existing keys)
     let merged = this.deepMergeDefaults(DEFAULT_CONFIG, dbValues);
@@ -76,9 +90,14 @@ export class ConfigLoader {
    * that have corresponding flattened keys are identical to defaults, the blob
    * is stale — use the flattened keys. Otherwise, the blob was user-modified.
    *
-   * After migration, old keys are removed from dbValues so they get cleaned up on save().
+   * This is a ONE-TIME migration that persists the blob to DB and deletes
+   * flat keys. After migration completes, it will not run again (guarded by
+   * configVersion check in load()).
    */
   private migrateFlattenedKeys(dbValues: Record<string, unknown>): Record<string, unknown> {
+    const flatKeysToDelete: string[] = [];
+    const now = new Date().toISOString();
+
     // Identify top-level groups that have flattened child keys
     const groupPrefixes = Object.keys(DEFAULT_CONFIG).filter((k) => {
       const def = (DEFAULT_CONFIG as Record<string, unknown>)[k];
@@ -97,9 +116,10 @@ export class ConfigLoader {
           const blobIsUserModified = this.blobDiffersFromDefaults(prefix, parentVal as Record<string, unknown>, childKeys);
           if (blobIsUserModified) {
             // Blob was modified by update() — it is the authoritative source.
-            // Delete orphaned child keys.
+            // Delete orphaned child keys from memory AND DB.
             for (const ck of childKeys) {
               delete dbValues[ck];
+              flatKeysToDelete.push(ck);
             }
             continue;
           }
@@ -111,9 +131,10 @@ export class ConfigLoader {
       // No parent blob OR blob is stale defaults — reconstruct from flattened keys
       let nested = this.reconstructNested(prefix, childKeys, dbValues);
 
-      // Remove old child keys
+      // Track old child keys for DB cleanup
       for (const ck of childKeys) {
         delete dbValues[ck];
+        flatKeysToDelete.push(ck);
       }
 
       // If there was a stale parent blob, merge reconstructed data into it
@@ -123,11 +144,26 @@ export class ConfigLoader {
         // Delete the stale blob from dbValues
         delete dbValues[prefix];
         // Merge: reconstructed nested data wins, parent blob fills in missing fields
-        nested = this.deepMergeDefaults(parentVal, nested);
+        nested = this.deepMergeDefaults(nested, parentVal);
       }
 
-      // Store as single JSON blob
+      // Store as single JSON blob in memory
       dbValues[prefix] = nested;
+
+      // CRITICAL: persist the reconstructed blob to DB immediately.
+      // This is a migration — we're converting flat keys to a blob.
+      // Without this, the blob only exists in memory and is lost on next load().
+      const upsert = this.db.prepare(
+        'INSERT INTO config (key, value, updated_at) VALUES (?, ?, ?) ' +
+        'ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at',
+      );
+      upsert.run(prefix, JSON.stringify(nested), now);
+    }
+
+    // Delete flat keys from DB
+    if (flatKeysToDelete.length > 0) {
+      const placeholders = flatKeysToDelete.map(() => '?').join(',');
+      this.db.prepare(`DELETE FROM config WHERE key IN (${placeholders})`).run(...flatKeysToDelete);
     }
 
     return dbValues;
@@ -153,6 +189,14 @@ export class ConfigLoader {
       const relative = ck.slice(prefix.length + 1); // e.g., "rainfallSensors.0"
       const topKey = relative.split('.')[0]; // e.g., "rainfallSensors"
       topLevelSubKeys.add(topKey);
+    }
+
+    // If any sub-key is missing from blob (but exists as flat keys), the blob is incomplete
+    // and was likely written by a partial update — treat it as user-modified.
+    for (const subKey of topLevelSubKeys) {
+      if (!(subKey in blob)) {
+        return true;
+      }
     }
 
     // If any sub-key in the blob differs from defaults, the blob is user-modified
@@ -189,6 +233,12 @@ export class ConfigLoader {
       const fullPath = `${prefix}.${relativeKey}`;
       const value = dbValues[fullPath];
       const parts = relativeKey.split('.');
+
+      // Skip array-valued keys — they are stale artifacts from the old flatten format
+      // (e.g., entityGroups.rainfallSensors = []). Indexed child keys
+      // (e.g., entityGroups.rainfallSensors.0 = "...") will correctly rebuild the array.
+      // Processing the empty array last would overwrite the populated one.
+      if (Array.isArray(value)) continue;
 
       let current = result;
       for (let i = 0; i < parts.length - 1; i++) {
@@ -235,18 +285,45 @@ export class ConfigLoader {
   ): Record<string, unknown> {
     const versionKey = 'configVersion';
     const savedVersion = config[versionKey] as number | undefined;
-    const currentVersion = 3;
+    const currentVersion = 4;
 
     if ((savedVersion ?? 0) >= currentVersion) {
       return config;
+    }
+
+    // Migration v3 -> v4: add per-sensor units for existing sensors without units
+    if ((savedVersion ?? 0) < 4) {
+      const eg = config.entityGroups as Record<string, unknown> | undefined;
+      if (eg) {
+        for (const key of ['temperatureSensors', 'rainfallSensors']) {
+          const arr = eg[key];
+          if (Array.isArray(arr)) {
+            eg[key] = arr.map((item: unknown) => {
+              if (typeof item === 'string') {
+                return { entity_id: item, added_at: new Date().toISOString(), unit: key === 'temperatureSensors' ? 'celsius' : 'millimeters' };
+              }
+              if (item && typeof item === 'object' && 'entity_id' in item && !('unit' in item)) {
+                const obj = item as Record<string, unknown>;
+                obj.unit = key === 'temperatureSensors' ? 'celsius' : 'millimeters';
+                if (!obj.added_at) {
+                  obj.added_at = new Date().toISOString();
+                }
+                return obj;
+              }
+              return item;
+            });
+          }
+        }
+      }
     }
 
     // Migration v1 -> v2: fix growth model base rates
     if ((savedVersion ?? 0) < 2) {
       const growthModel = config.growthModel as Record<string, unknown> | undefined;
       const defaultGM = (defaults.growthModel as Record<string, unknown>) || {};
-      if (growthModel && typeof growthModel.baseRatePerDay === 'number') {
-        if (growthModel.baseRatePerDay < 1.5) {
+      if (growthModel && typeof growthModel === 'object') {
+        const rate = growthModel.baseRatePerDay;
+        if (typeof rate === 'number' && rate < 1.5) {
           growthModel.baseRatePerDay = defaultGM.baseRatePerDay as number;
         }
       }
@@ -256,11 +333,11 @@ export class ConfigLoader {
     // to { entity_id, added_at }[]. Plain strings get current timestamp as added_at.
     if ((savedVersion ?? 0) < 3) {
       const eg = config.entityGroups as Record<string, unknown> | undefined;
-      if (eg) {
+      if (eg && typeof eg === 'object') {
         for (const key of ['rainfallSensors', 'temperatureSensors']) {
           const arr = eg[key];
           if (Array.isArray(arr)) {
-            eg[key] = arr.map((item: unknown) => {
+            eg[key] = arr.map((item) => {
               if (typeof item === 'string') {
                 return { entity_id: item, added_at: new Date().toISOString() };
               }

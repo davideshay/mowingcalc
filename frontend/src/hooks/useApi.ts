@@ -82,9 +82,18 @@ function usePolling<T>(url: string, intervalMs: number = 30000): UseApiResult<T>
   return { data, loading, error, refetch: fetcher };
 }
 
-// Config hooks
+// Config hooks — refetches automatically after any mutation (PATCH/PUT)
+// via a custom 'config-changed' event dispatched by useConfigUpdate.
 export function useConfig() {
-  return useApi<any>('/config');
+  const { data, loading, error, refetch } = useApi<any>('/config');
+
+  useEffect(() => {
+    const handler = () => refetch();
+    window.addEventListener('config-changed', handler);
+    return () => window.removeEventListener('config-changed', handler);
+  }, [refetch]);
+
+  return { data, loading, error, refetch };
 }
 
 export function useAlgorithmState() {
@@ -199,8 +208,14 @@ export function useConfigUpdate() {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || `HTTP ${response.status}`);
       }
+      const updated = await response.json();
+      // Notify useConfig to refetch — prevents stale config from overwriting
+      // previous mutations when switching tabs (e.g., delete rainfall sensor,
+      // then delete temperature sensor; without refetch, the stale config
+      // would send back the old rainfall sensor list, undoing the first deletion).
+      window.dispatchEvent(new Event('config-changed'));
       toast.success('Configuration saved');
-      return await response.json();
+      return updated;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to save configuration';
       toast.error(message);
@@ -222,8 +237,10 @@ export function useConfigUpdate() {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || `HTTP ${response.status}`);
       }
+      const updated = await response.json();
+      window.dispatchEvent(new Event('config-changed'));
       toast.success('Configuration saved');
-      return await response.json();
+      return updated;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to save configuration';
       toast.error(message);

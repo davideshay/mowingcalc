@@ -84,6 +84,7 @@ const WeatherSensorSchema = z.union([
   z.object({
     entity_id: z.string(),
     added_at: z.string().datetime().optional(),
+    unit: z.enum(['celsius', 'fahrenheit', 'millimeters', 'inches']).optional().default('celsius'),
   }),
   z.string(),
 ]);
@@ -204,6 +205,17 @@ export function getSensorAddedAt(entry: unknown): string | undefined {
   if (typeof entry === 'string') return undefined;
   if (entry && typeof entry === 'object') {
     return (entry as { added_at?: string }).added_at;
+  }
+  return undefined;
+}
+
+/**
+ * Get unit from a weather sensor entry, or undefined if legacy string format.
+ */
+export function getSensorUnit(entry: unknown): string | undefined {
+  if (typeof entry === 'string') return undefined;
+  if (entry && typeof entry === 'object') {
+    return (entry as { unit?: string }).unit;
   }
   return undefined;
 }

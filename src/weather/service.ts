@@ -1,7 +1,7 @@
 import pino from 'pino';
 import Database from 'better-sqlite3';
 import { HAClient, AggregatedWeatherData } from '../ha/client';
-import { AppConfig, getSensorEntityId } from '../config/schema';
+import { AppConfig, getSensorEntityId, getSensorUnit } from '../config/schema';
 
 const logger = pino({ level: 'info' });
 
@@ -107,19 +107,29 @@ export class WeatherService {
     // Fetch from HA
     logger.info({ metric, entities: entityIds }, 'Fetching weather data from HA');
     try {
+      // Detect sensor unit from config (per-sensor) for temperature/rainfall
+      let sensorUnit: string | undefined;
+      if (metric === 'temperature' && entityIds.length > 0) {
+        // Get the sensor entries from config to find their units
+        const sensors = this.config.entityGroups.temperatureSensors;
+        if (sensors.length > 0) {
+          const unit = getSensorUnit(sensors[0]);
+          // Use per-sensor unit if set, otherwise fall back to global config
+          sensorUnit = unit ?? this.config.entityGroups.temperatureUnit;
+        }
+      }
       let data = await this.ha.getAggregatedHistoricalData(
         entityIds, startTime, endTime, 3600000,
         metric as 'rainfall' | 'temperature' | 'sunshine' | 'uv_index',
       );
-      // Convert Fahrenheit to Celsius if configured
-      if (metric === 'temperature' && this.config.entityGroups.temperatureUnit === 'fahrenheit') {
+      // Convert Fahrenheit to Celsius if sensors report in °F
+      if (metric === 'temperature' && sensorUnit === 'fahrenheit') {
         data = data.map((d) => ({
           ...d,
           temperature_c: d.temperature_c != null ? (d.temperature_c - 32) * 5 / 9 : undefined,
         }));
       }
-      // NOTE: rainfall unit conversion is handled in HAClient (getAggregatedStatisticsData line 329).
-      // The HA client converts in/hr -> mm automatically. Do NOT double-convert here.
+      // NOTE: rainfall unit conversion is handled in HAClient (in/hr -> mm automatically).
       // Store in cache
       this.saveToCache(metric, startTime, endTime, data);
       return data;
