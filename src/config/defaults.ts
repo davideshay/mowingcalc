@@ -101,6 +101,9 @@ export const DEFAULT_CONFIG: AppConfig = {
     // Last mow time (optional - if Navimow doesn't expose this as an attribute)
     lastMowTimeEntity: '',
 
+    // Last mow datetime entity - app writes to this input_datetime when mow is initiated
+    lastMowDatetimeEntity: '',
+
     // Sun entity (usually fixed, provides sunset/sunrise)
     sunEntity: 'sun.sun',
   },

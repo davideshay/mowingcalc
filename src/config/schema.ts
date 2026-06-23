@@ -115,6 +115,11 @@ const EntityGroupsSchema = z.object({
   // Last mow time (optional - if Navimow doesn't expose this as an attribute)
   lastMowTimeEntity: z.string().default(''),
 
+  // Last mow datetime entity - input_datetime that the app WRITES to when a mow is initiated.
+  // The calculator reads from BOTH lastMowTimeEntity (HA-managed) and lastMowDatetimeEntity
+  // (app-managed) and picks the later of the two. Override (lastMowTimeOverride) takes precedence.
+  lastMowDatetimeEntity: z.string().default(''),
+
   // Sun entity (usually fixed)
   sunEntity: z.string().default('sun.sun'),
 });

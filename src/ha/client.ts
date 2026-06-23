@@ -652,6 +652,15 @@ export class HAClient {
     await this.callService('input_select', 'select_option', { entity_id: entityId, option });
   }
 
+  // Write to HA input_datetime entity (used to record last mow time)
+  async writeInputDatetime(entityId: string, timestamp: Date): Promise<void> {
+    // HA input_datetime.set_datetime expects the value as an ISO 8601 string
+    await this.callService('input_datetime', 'set_datetime', {
+      entity_id: entityId,
+      datetime: timestamp.toISOString(),
+    });
+  }
+
   // Get sun state (sunrise/sunset times)
   async getSunState(): Promise<HAEntityState> {
     return this.getEntityState('sun.sun');

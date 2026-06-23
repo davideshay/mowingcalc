@@ -114,6 +114,7 @@ export interface ConfigResponse {
     mowerType: 'switch' | 'lawn_mower' | 'custom';
     mowerEntity: string;
     lastMowTimeEntity: string;
+    lastMowDatetimeEntity: string;
     sunEntity: string;
   };
   haInputHelpers: {

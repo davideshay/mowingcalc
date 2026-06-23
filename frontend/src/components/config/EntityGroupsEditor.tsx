@@ -38,6 +38,7 @@ interface EntityGroups {
   mowerType: 'switch' | 'lawn_mower' | 'custom';
   mowerEntity: string;
   lastMowTimeEntity: string;
+  lastMowDatetimeEntity: string;
   sunEntity: string;
 }
 
@@ -481,8 +482,22 @@ export function EntityGroupsEditor({ groups, onChange }: Props) {
                 }
                 value={groups.lastMowTimeEntity}
                 onChange={(e) => updateSingle('lastMowTimeEntity', e.target.value)}
-                placeholder="sensor.last_mowed_template (create in HA if needed)"
-                helperText="The Navimow integration does not expose last mowed time. To enable this, create a template sensor in HA that tracks when your mower last mowed, or the app will estimate based on its own mow event history."
+                placeholder="input_datetime.mowingcalc_last_mow"
+                helperText="HA-managed entity tracking last mow time (e.g., set by HA automations). The calculator reads from this and the app-managed entity below, using whichever is more recent."
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth
+                label={
+                  <Box component="span">
+                    Last Mow Datetime Entity <Typography component="span" variant="caption" color="text.disabled">(optional)</Typography>
+                  </Box>
+                }
+                value={groups.lastMowDatetimeEntity}
+                onChange={(e) => updateSingle('lastMowDatetimeEntity', e.target.value)}
+                placeholder="input_datetime.mowingcalc_last_mow_app"
+                helperText="input_datetime entity the app writes to when a mow is initiated. Create this in HA as an input_datetime helper."
               />
             </Grid>
           </Grid>

@@ -459,6 +459,9 @@ function createApp(): express.Application {
     if (config.entityGroups.lastMowTimeEntity) {
       entitiesToCheck.push({ entity_id: config.entityGroups.lastMowTimeEntity, label: 'Last Mow Time' });
     }
+    if (config.entityGroups.lastMowDatetimeEntity) {
+      entitiesToCheck.push({ entity_id: config.entityGroups.lastMowDatetimeEntity, label: 'Last Mow Datetime (app)' });
+    }
     if (config.entityGroups.sunEntity) {
       entitiesToCheck.push({ entity_id: config.entityGroups.sunEntity, label: 'Sun' });
     }

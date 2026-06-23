@@ -458,7 +458,7 @@ export function Configuration() {
                   <Typography variant="h6" gutterBottom sx={{ color: 'warning.main' }}>Debug: Last Mow Time Override</Typography>
                   <Typography variant="body2" color="warning.main" sx={{ mb: 2 }}>
                     Manually override the last mow time used by the growth model. When set, this takes
-                    precedence over the Home Assistant entity. Leave empty to use the HA entity value.
+                    precedence over both Home Assistant entities. Leave empty to use the HA entity values.
                   </Typography>
                   {draft.lastMowTimeOverride ? (
                     <Box>
@@ -536,7 +536,7 @@ export function Configuration() {
                   )}
                   {!draft.lastMowTimeOverride && (
                     <Typography variant="caption" color="warning.main" sx={{ display: 'block', mt: 1 }}>
-                      No override active -- using HA entity: {draft.entityGroups.lastMowTimeEntity || '(none configured)'}
+                      No override active -- using HA entities: {draft.entityGroups.lastMowTimeEntity || '(HA: none)'} / {draft.entityGroups.lastMowDatetimeEntity || '(app: none)'}
                     </Typography>
                   )}
                 </CardContent>

@@ -225,7 +225,7 @@ export class DecisionEngine {
   }
 
   private async getLastMowTime(): Promise<Date | null> {
-    // Check config override first (takes precedence over HA entity)
+    // Check config override first (takes precedence over HA entities)
     if (this.config.lastMowTimeOverride) {
       const parsed = new Date(this.config.lastMowTimeOverride);
       if (!isNaN(parsed.getTime())) {
@@ -234,15 +234,42 @@ export class DecisionEngine {
     }
 
     if (!this.ha) return null;
+
+    // Read from both entities in parallel and pick the later one:
+    // - lastMowTimeEntity: HA-managed entity (e.g., input_datetime set by HA automations)
+    // - lastMowDatetimeEntity: App-managed entity (written by app when mow is initiated)
+    const times: Date[] = [];
+
+    const entities = [
+      this.config.entityGroups.lastMowTimeEntity,
+      this.config.entityGroups.lastMowDatetimeEntity,
+    ].filter(Boolean);
+
+    if (entities.length === 0) return null;
+
     try {
-      const entity = this.config.entityGroups.lastMowTimeEntity;
-      if (!entity) return null;
-      const state = await this.ha.getEntityState(entity);
-      const parsed = new Date(state.state);
-      return isNaN(parsed.getTime()) ? null : parsed;
+      const results = await Promise.allSettled(
+        entities.map((entity) => this.ha!.getEntityState(entity)),
+      );
+
+      for (const result of results) {
+        if (result.status === 'fulfilled') {
+          const parsed = new Date(result.value.state);
+          if (!isNaN(parsed.getTime())) {
+            times.push(parsed);
+          }
+        }
+      }
+
+      // Return the latest (most recent) timestamp
+      if (times.length > 0) {
+        return times.reduce((latest, t) => (t > latest ? t : latest));
+      }
     } catch {
-      return null;
+      // Fall through to null
     }
+
+    return null;
   }
 
   private getHourlyForecastEntity(): string {
@@ -385,6 +412,7 @@ export class DecisionEngine {
     }
 
     const { mowerType, mowerEntity } = this.config.entityGroups;
+    const mowTime = new Date();
 
     // Record mow start event
     const eventStmt = this.db.prepare(`
@@ -392,7 +420,7 @@ export class DecisionEngine {
       VALUES (?, ?)
     `);
     eventStmt.run(
-      new Date().toISOString(),
+      mowTime.toISOString(),
       this.config.avgMowingDuration,
     );
 
@@ -409,6 +437,17 @@ export class DecisionEngine {
         break;
       default:
         throw new Error(`Unknown mower type: ${mowerType}`);
+    }
+
+    // Write last mow time to app-managed datetime entity
+    const lastMowDatetimeEntity = this.config.entityGroups.lastMowDatetimeEntity;
+    if (lastMowDatetimeEntity) {
+      try {
+        await this.ha.writeInputDatetime(lastMowDatetimeEntity, mowTime);
+        logger.info({ entity: lastMowDatetimeEntity, time: mowTime.toISOString() }, 'Updated last mow datetime entity');
+      } catch (err) {
+        logger.warn({ err, entity: lastMowDatetimeEntity }, 'Failed to update last mow datetime entity');
+      }
     }
 
     logger.info({ mowerEntity, mowerType }, 'Mower triggered successfully');
