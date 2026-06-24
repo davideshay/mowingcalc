@@ -1,19 +1,20 @@
-import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
-import TextField from '@mui/material/TextField';
+import Grid from '@mui/material/Grid';
 import Typography from '@mui/material/Typography';
 import Checkbox from '@mui/material/Checkbox';
 import FormGroup from '@mui/material/FormGroup';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Alert from '@mui/material/Alert';
+import { EntityPicker } from './EntityPicker';
+import { useHAEntities } from '../../hooks/useApi';
 
 interface HAInputHelpers {
   enabled: boolean;
-  nextMowNumber: string;
+  nextMowDateTime: string;
   growthEstimateNumber: string;
   rainDelayNumber: string;
   mowRecommendedBoolean: string;
-  mowReasonSelect: string;
+  mowReasonText: string;
 }
 
 interface Props {
@@ -29,6 +30,12 @@ export function HAInputHelpersEditor({ helpers, onChange }: Props) {
     });
   };
 
+  // Fetch entities by domain
+  const { entities: datetimeEntities, loading: datetimesLoading, refetch: refetchDatetimes } = useHAEntities('input_datetime');
+  const { entities: numberEntities, loading: numbersLoading, refetch: refetchNumbers } = useHAEntities('input_number');
+  const { entities: booleanEntities, loading: booleansLoading, refetch: refetchBooleans } = useHAEntities('input_boolean');
+  const { entities: textEntities, loading: textsLoading, refetch: refetchTexts } = useHAEntities('input_text');
+
   return (
     <Stack spacing={2}>
       <Alert severity="warning">
@@ -38,10 +45,13 @@ export function HAInputHelpersEditor({ helpers, onChange }: Props) {
         <Typography variant="body2" sx={{ mb: 1 }}>
           Home Assistant Input Helpers are entities you create in HA that this app writes to. They let you build automations in HA based on the mowing algorithm&apos;s output.
         </Typography>
+        <Typography variant="body2" sx={{ mb: 1 }}>
+          These helpers are updated every time the algorithm runs (default: every 15 minutes), <strong>even in read-only mode</strong>. They are purely informational — read-only mode only blocks actual mower control.
+        </Typography>
         <ul style={{ margin: 0, paddingLeft: 20 }}>
           <li><code>input_boolean.mow_recommended</code> → True/False recommendation</li>
           <li><code>input_number.growth_estimate_mm</code> → Current grass growth</li>
-          <li><code>input_select.mow_reason</code> → Text explanation</li>
+          <li><code>input_text.mow_reason</code> → Text explanation</li>
         </ul>
         <Typography variant="body2" sx={{ mt: 1 }}>
           Create these in HA: Settings → Devices &amp; Services → Helpers → Create Helper
@@ -61,62 +71,68 @@ export function HAInputHelpersEditor({ helpers, onChange }: Props) {
       </FormGroup>
 
       {helpers.enabled && (
-        <Stack
-          direction="row"
-          spacing={2}
-          useFlexGap
-          sx={{ flexWrap: 'wrap', pl: 7 }}
-        >
-          <Box sx={{ flex: '1 1 250px' }}>
-            <TextField
-              fullWidth
-              size="small"
-              label="Next Mow Number"
-              value={helpers.nextMowNumber}
-              onChange={(e) => update('nextMowNumber', e.target.value)}
+        <Grid container spacing={2} sx={{ pl: 7 }}>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <EntityPicker
+              options={datetimeEntities}
+              loading={datetimesLoading}
+              value={helpers.nextMowDateTime}
+              onChange={(id) => update('nextMowDateTime', id)}
+              onRefresh={refetchDatetimes}
+              placeholder="Select input_datetime..."
+              label="Next Mow DateTime"
+              helperText="input_datetime helper for predicted next mow time."
             />
-          </Box>
-
-          <Box sx={{ flex: '1 1 250px' }}>
-            <TextField
-              fullWidth
-              size="small"
-              label="Growth Estimate Number"
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <EntityPicker
+              options={numberEntities}
+              loading={numbersLoading}
               value={helpers.growthEstimateNumber}
-              onChange={(e) => update('growthEstimateNumber', e.target.value)}
+              onChange={(id) => update('growthEstimateNumber', id)}
+              onRefresh={refetchNumbers}
+              placeholder="Select input_number..."
+              label="Growth Estimate Number"
+              helperText="input_number helper for current grass growth estimate."
             />
-          </Box>
-
-          <Box sx={{ flex: '1 1 250px' }}>
-            <TextField
-              fullWidth
-              size="small"
-              label="Rain Delay Number"
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <EntityPicker
+              options={numberEntities}
+              loading={numbersLoading}
               value={helpers.rainDelayNumber}
-              onChange={(e) => update('rainDelayNumber', e.target.value)}
+              onChange={(id) => update('rainDelayNumber', id)}
+              onRefresh={refetchNumbers}
+              placeholder="Select input_number..."
+              label="Rain Delay Number"
+              helperText="input_number helper for rain delay remaining hours."
             />
-          </Box>
-
-          <Box sx={{ flex: '1 1 250px' }}>
-            <TextField
-              fullWidth
-              size="small"
-              label="Mow Recommended Boolean"
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <EntityPicker
+              options={booleanEntities}
+              loading={booleansLoading}
               value={helpers.mowRecommendedBoolean}
-              onChange={(e) => update('mowRecommendedBoolean', e.target.value)}
+              onChange={(id) => update('mowRecommendedBoolean', id)}
+              onRefresh={refetchBooleans}
+              placeholder="Select input_boolean..."
+              label="Mow Recommended Boolean"
+              helperText="input_boolean helper — set True when mowing is recommended."
             />
-          </Box>
-
-          <Box sx={{ flex: '1 1 250px' }}>
-            <TextField
-              fullWidth
-              size="small"
-              label="Mow Reason Select"
-              value={helpers.mowReasonSelect}
-              onChange={(e) => update('mowReasonSelect', e.target.value)}
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <EntityPicker
+              options={textEntities}
+              loading={textsLoading}
+              value={helpers.mowReasonText}
+              onChange={(id) => update('mowReasonText', id)}
+              onRefresh={refetchTexts}
+              placeholder="Select input_text..."
+              label="Mow Reason Text"
+              helperText="input_text helper — set to current mow decision reason."
             />
-          </Box>
-        </Stack>
+          </Grid>
+        </Grid>
       )}
     </Stack>
   );

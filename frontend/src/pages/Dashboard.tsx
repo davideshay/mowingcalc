@@ -223,6 +223,23 @@ export function Dashboard() {
           </CardContent>
         </Card>
       )}
+
+      {/* Predicted next mow */}
+      {algo?.predicted_next_mow && (
+        <Card sx={{ borderLeft: '4px solid info.main' }}>
+          <CardContent>
+            <Typography variant="body2" color="text.secondary" gutterBottom>
+              Predicted Next Mow
+            </Typography>
+            <Typography variant="h6" component="div">
+              {format(new Date(algo.predicted_next_mow), 'EEEE, MMMM d, yyyy h:mm a')}
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              Based on current growth rate, rain delay, and mowing constraints
+            </Typography>
+          </CardContent>
+        </Card>
+      )}
     </Box>
   );
 }

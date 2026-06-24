@@ -20,6 +20,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import RefreshOutlined from '@mui/icons-material/RefreshOutlined';
 import { useHAEntities } from '../../hooks/useApi';
 import type { WeatherSensorEntry } from '../../types/api';
+import { EntityPicker } from './EntityPicker';
 
 interface SunshineSource {
   entity_id: string;
@@ -52,7 +53,7 @@ interface Props {
   onChange: (groups: EntityGroups) => void;
 }
 
-// HA sensor entity type (from our API)
+// HA entity type (from our API)
 interface HAEntity {
   entity_id: string;
   state: string;
@@ -60,7 +61,7 @@ interface HAEntity {
   friendly_name: string | null;
 }
 
-// Autocomplete sensor picker — selecting immediately adds the entity
+// Autocomplete sensor picker — selecting immediately adds the entity to a group
 function SensorPicker({
   options,
   loading,
@@ -180,8 +181,18 @@ function SensorPicker({
 }
 
 export function EntityGroupsEditor({ groups, onChange }: Props) {
-  // Fetch sensor entities from HA
+  // Fetch entities from multiple domains
   const { entities: sensorEntities, loading: sensorsLoading, error: sensorsError, refetch: refetchSensors } = useHAEntities('sensor');
+  const { entities: mowerEntities, loading: mowersLoading, refetch: refetchMowers } = useHAEntities('lawn_mower');
+  const { entities: switchEntities, loading: switchesLoading, refetch: refetchSwitches } = useHAEntities('switch');
+  const { entities: datetimeEntities, loading: datetimesLoading, refetch: refetchDatetimes } = useHAEntities('input_datetime');
+  const { entities: weatherEntities, loading: weathersLoading, refetch: refetchWeathers } = useHAEntities('weather');
+  const { entities: sunEntities, loading: sunsLoading, refetch: refetchSuns } = useHAEntities('sun');
+
+  // Combine mower + switch entities for mower picker based on type
+  const mowerOptions = groups.mowerType === 'switch' ? switchEntities : mowerEntities;
+  const mowerLoading = groups.mowerType === 'switch' ? switchesLoading : mowersLoading;
+  const refetchMowerOptions = groups.mowerType === 'switch' ? refetchSwitches : refetchMowers;
 
   const removeSensor = (group: string, index: number) => {
     const current = groups[group as keyof EntityGroups] as WeatherSensorEntry[];
@@ -431,9 +442,8 @@ export function EntityGroupsEditor({ groups, onChange }: Props) {
         </Grid>
       </Grid>
 
-      {/* Single entity fields */}
+      {/* Mower Entity section */}
       <Grid container spacing={2}>
-        {/* Mower Entity section */}
         <Grid size={{ xs: 12 }}>
           <Typography variant="h6" sx={{ mb: 2 }}>
             Mower Entity
@@ -464,46 +474,57 @@ export function EntityGroupsEditor({ groups, onChange }: Props) {
               </FormControl>
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Mower Entity ID"
-                value={groups.mowerEntity}
-                onChange={(e) => updateSingle('mowerEntity', e.target.value)}
-                placeholder="lawn_mower.navimow"
-              />
+              {groups.mowerType !== 'custom' ? (
+                <EntityPicker
+                  options={mowerOptions}
+                  loading={mowerLoading}
+                  value={groups.mowerEntity}
+                  onChange={(id) => updateSingle('mowerEntity', id)}
+                  onRefresh={refetchMowerOptions}
+                  placeholder={groups.mowerType === 'lawn_mower' ? 'Select lawn_mower...' : 'Select switch...'}
+                  label="Mower Entity"
+                />
+              ) : (
+                <TextField
+                  fullWidth
+                  label="Mower Entity ID"
+                  value={groups.mowerEntity}
+                  onChange={(e) => updateSingle('mowerEntity', e.target.value)}
+                  placeholder="lawn_mower.navimow"
+                  helperText="Custom mower type — enter the entity ID manually."
+                />
+              )}
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label={
-                  <Box component="span">
-                    Last Mow Time Entity <Typography component="span" variant="caption" color="text.disabled">(optional)</Typography>
-                  </Box>
-                }
+              <EntityPicker
+                options={datetimeEntities}
+                loading={datetimesLoading}
                 value={groups.lastMowTimeEntity}
-                onChange={(e) => updateSingle('lastMowTimeEntity', e.target.value)}
-                placeholder="input_datetime.mowingcalc_last_mow"
-                helperText="HA-managed entity tracking last mow time (e.g., set by HA automations). The calculator reads from this and the app-managed entity below, using whichever is more recent."
+                onChange={(id) => updateSingle('lastMowTimeEntity', id)}
+                onRefresh={refetchDatetimes}
+                placeholder="Select input_datetime..."
+                label="HA-Managed Last Mow Entity"
+                helperText="Entity updated by HA automations or the mower itself. The calculator reads this and the app-managed entity, using whichever is more recent."
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label={
-                  <Box component="span">
-                    Last Mow Datetime Entity <Typography component="span" variant="caption" color="text.disabled">(optional)</Typography>
-                  </Box>
-                }
+              <EntityPicker
+                options={datetimeEntities}
+                loading={datetimesLoading}
                 value={groups.lastMowDatetimeEntity}
-                onChange={(e) => updateSingle('lastMowDatetimeEntity', e.target.value)}
-                placeholder="input_datetime.mowingcalc_last_mow_app"
-                helperText="input_datetime entity the app writes to when a mow is initiated. Create this in HA as an input_datetime helper."
+                onChange={(id) => updateSingle('lastMowDatetimeEntity', id)}
+                onRefresh={refetchDatetimes}
+                placeholder="Select input_datetime..."
+                label="App-Controlled Last Mow Entity"
+                helperText="This app writes to this input_datetime whenever a mow is initiated. Create it in HA as an input_datetime helper."
               />
             </Grid>
           </Grid>
         </Grid>
+      </Grid>
 
-        {/* Weather section */}
+      {/* Weather section */}
+      <Grid container spacing={2}>
         <Grid size={{ xs: 12 }}>
           <Divider sx={{ my: 2 }} />
           <Typography variant="h6" sx={{ mb: 2 }}>
@@ -516,47 +537,57 @@ export function EntityGroupsEditor({ groups, onChange }: Props) {
 
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                fullWidth
-                label="Default Forecast Entity"
+              <EntityPicker
+                options={weatherEntities}
+                loading={weathersLoading}
                 value={groups.weatherForecastEntity}
-                onChange={(e) => updateSingle('weatherForecastEntity', e.target.value)}
-                placeholder="weather.home"
+                onChange={(id) => updateSingle('weatherForecastEntity', id)}
+                onRefresh={refetchWeathers}
+                placeholder="Select weather..."
+                label="Default Forecast Entity"
                 helperText="Fallback entity if hourly/daily fields are empty."
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                fullWidth
-                label="Hourly Forecast Entity"
+              <EntityPicker
+                options={weatherEntities}
+                loading={weathersLoading}
                 value={groups.hourlyForecastEntity || ''}
-                onChange={(e) => updateSingle('hourlyForecastEntity', e.target.value)}
-                placeholder="weather.nws_hourly"
+                onChange={(id) => updateSingle('hourlyForecastEntity', id)}
+                onRefresh={refetchWeathers}
+                placeholder="Select weather..."
+                label="Hourly Forecast Entity"
                 helperText="Entity for 48-hour hourly forecast. Leave empty to use default."
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                fullWidth
-                label="Daily Forecast Entity"
+              <EntityPicker
+                options={weatherEntities}
+                loading={weathersLoading}
                 value={groups.dailyForecastEntity || ''}
-                onChange={(e) => updateSingle('dailyForecastEntity', e.target.value)}
-                placeholder="weather.openweathermap"
+                onChange={(id) => updateSingle('dailyForecastEntity', id)}
+                onRefresh={refetchWeathers}
+                placeholder="Select weather..."
+                label="Daily Forecast Entity"
                 helperText="Entity for 7-day daily forecast. Leave empty to use default."
               />
             </Grid>
           </Grid>
 
-          <Box sx={{ mt: 2 }}>
-            <TextField
-              label="Sun Entity"
-              value={groups.sunEntity}
-              onChange={(e) => updateSingle('sunEntity', e.target.value)}
-              placeholder="sun.sun"
-              helperText="Usually sun.sun - provides sunrise/sunset times."
-              sx={{ maxWidth: 400 }}
-            />
-          </Box>
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <EntityPicker
+                options={sunEntities}
+                loading={sunsLoading}
+                value={groups.sunEntity}
+                onChange={(id) => updateSingle('sunEntity', id)}
+                onRefresh={refetchSuns}
+                placeholder="Select sun..."
+                label="Sun Entity"
+                helperText="Usually sun.sun - provides sunrise/sunset times."
+              />
+            </Grid>
+          </Grid>
         </Grid>
       </Grid>
     </Stack>

@@ -588,7 +588,11 @@ export class HAClient {
   // Call a Home Assistant service (e.g., switch.turn_on)
   async callService(domain: string, service: string, data: Record<string, unknown> = {}): Promise<HAServiceCallResult> {
     if (this.readonlyMode) {
-      throw new Error(`READONLY MODE: service call ${domain}.${service} blocked`);
+      // Allow informational helper writes (input_*) even in readonly mode.
+      // Only block mower control services.
+      if (!domain.startsWith('input_')) {
+        throw new Error(`READONLY MODE: service call ${domain}.${service} blocked`);
+      }
     }
     return this.request<HAServiceCallResult>(`/api/services/${domain}/${service}`, {
       method: 'POST',
@@ -652,12 +656,23 @@ export class HAClient {
     await this.callService('input_select', 'select_option', { entity_id: entityId, option });
   }
 
+  async writeInputText(entityId: string, value: string): Promise<void> {
+    await this.callService('input_text', 'set_value', { entity_id: entityId, value });
+  }
+
   // Write to HA input_datetime entity (used to record last mow time)
   async writeInputDatetime(entityId: string, timestamp: Date): Promise<void> {
-    // HA input_datetime.set_datetime expects the value as an ISO 8601 string
+    // HA input_datetime.set_datetime expects local time (no 'Z' suffix).
+    // toISOString() always produces UTC, so we format as local ISO string.
+    const localDatetime = timestamp.getFullYear() + '-' +
+      String(timestamp.getMonth() + 1).padStart(2, '0') + '-' +
+      String(timestamp.getDate()).padStart(2, '0') + 'T' +
+      String(timestamp.getHours()).padStart(2, '0') + ':' +
+      String(timestamp.getMinutes()).padStart(2, '0') + ':' +
+      String(timestamp.getSeconds()).padStart(2, '0');
     await this.callService('input_datetime', 'set_datetime', {
       entity_id: entityId,
-      datetime: timestamp.toISOString(),
+      datetime: localDatetime,
     });
   }
 

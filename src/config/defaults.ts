@@ -111,10 +111,10 @@ export const DEFAULT_CONFIG: AppConfig = {
   // HA Input Helpers (optional)
   haInputHelpers: {
     enabled: false,
-    nextMowNumber: 'input_number.next_predicted_mow',
+    nextMowDateTime: 'input_datetime.next_predicted_mow',
     growthEstimateNumber: 'input_number.growth_estimate_mm',
     rainDelayNumber: 'input_number.rain_delay_hours',
     mowRecommendedBoolean: 'input_boolean.mow_recommended',
-    mowReasonSelect: 'input_select.mow_reason',
+    mowReasonText: 'input_text.mow_reason',
   },
 };

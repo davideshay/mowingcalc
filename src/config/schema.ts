@@ -132,11 +132,11 @@ export const LAST_MOW_OVERRIDE_FIELD = 'lastMowTimeOverride';
 // HA Input Helpers config (optional)
 const HAInputHelpersSchema = z.object({
   enabled: z.boolean().default(false),
-  nextMowNumber: z.string().default('input_number.next_predicted_mow'),
+  nextMowDateTime: z.string().default('input_datetime.next_predicted_mow'),
   growthEstimateNumber: z.string().default('input_number.growth_estimate_mm'),
   rainDelayNumber: z.string().default('input_number.rain_delay_hours'),
   mowRecommendedBoolean: z.string().default('input_boolean.mow_recommended'),
-  mowReasonSelect: z.string().default('input_select.mow_reason'),
+  mowReasonText: z.string().default('input_text.mow_reason'),
 });
 
 // Main application configuration schema

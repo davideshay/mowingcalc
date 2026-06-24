@@ -952,6 +952,13 @@ export function AlgorithmDetails() {
                       <Typography variant="body2" sx={{ fontWeight: 'medium', mt: 0.5 }}>{format(new Date(algo.next_review), 'EEEE, MMMM d, yyyy h:mm a')}</Typography>
                     </Paper>
                   )}
+                  {algo?.predicted_next_mow && (
+                    <Paper elevation={0} sx={{ bgcolor: 'info.lighter', p: 2, borderRadius: 2 }}>
+                      <Typography variant="body2" color="text.secondary">Predicted next mow:</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 'medium', mt: 0.5 }}>{format(new Date(algo.predicted_next_mow), 'EEEE, MMMM d, yyyy h:mm a')}</Typography>
+                      <Typography variant="caption" color="text.secondary">Based on growth rate, rain delay, and mowing constraints</Typography>
+                    </Paper>
+                  )}
                 </Stack>
               </CardContent>
             </Card>

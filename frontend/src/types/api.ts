@@ -57,6 +57,7 @@ export interface AlgorithmStateResponse {
   hours_since_mow: number;
   last_mow_time: string | null;
   next_review: string;
+  predicted_next_mow: string | null;
   timestamp: string;
 }
 
@@ -119,11 +120,11 @@ export interface ConfigResponse {
   };
   haInputHelpers: {
     enabled: boolean;
-    nextMowNumber: string;
+    nextMowDateTime: string;
     growthEstimateNumber: string;
     rainDelayNumber: string;
     mowRecommendedBoolean: string;
-    mowReasonSelect: string;
+    mowReasonText: string;
   };
 }
 

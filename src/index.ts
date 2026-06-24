@@ -154,6 +154,7 @@ function createApp(): express.Application {
         hours_since_mow: result.hours_since_mow,
         last_mow_time: result.last_mow_time,
         next_review: result.next_review_time.toISOString(),
+        predicted_next_mow: result.predicted_next_mow?.toISOString() ?? null,
         timestamp: new Date().toISOString(),
       });
     } catch (err) {

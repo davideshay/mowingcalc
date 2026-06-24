@@ -41,7 +41,7 @@ export class AlgorithmScheduler {
       logger.info('Running algorithm decision engine');
       const result = await this.engine.run();
 
-      // Write to HA input helpers if enabled (blocked in readonly mode)
+      // Write to HA input helpers if enabled (informational - not blocked by readonly mode)
       await this.engine.writeToHAHelpers(result);
 
       if (result.should_mow) {

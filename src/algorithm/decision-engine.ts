@@ -18,6 +18,7 @@ export interface DecisionResult {
   last_mow_time: Date | null;
   hours_since_mow: number;
   next_review_time: Date;
+  predicted_next_mow: Date | null;
   forecast_safe: boolean;
 }
 
@@ -97,6 +98,11 @@ export class DecisionEngine {
       minTimeBetweenMows,
       maxTimeBetweenMows,
     });
+
+    // 7b. Estimate predicted next mow time
+    decision.predicted_next_mow = decision.should_mow
+      ? null // Mowing now — prediction is moot
+      : this.estimateNextMow(growth, rainDelay, lastMowTime, hoursSinceMow, growthLowerLimit, minTimeBetweenMows);
 
     // 8. Persist to DB
     this.saveToDb(decision, growth, rainDelay);
@@ -207,6 +213,7 @@ export class DecisionEngine {
       last_mow_time: lastMow,
       hours_since_mow: hoursSinceMow,
       next_review_time: new Date(Date.now() + 30 * 60000),
+      predicted_next_mow: null,
       forecast_safe: true,
     };
   }
@@ -220,6 +227,7 @@ export class DecisionEngine {
       last_mow_time: lastMow,
       hours_since_mow: hoursSinceMow,
       next_review_time: new Date(Date.now() + this.config.algorithmRunInterval * 60000),
+      predicted_next_mow: null,
       forecast_safe: forecastSafe,
     };
   }
@@ -254,7 +262,14 @@ export class DecisionEngine {
 
       for (const result of results) {
         if (result.status === 'fulfilled') {
-          const parsed = new Date(result.value.state);
+          // HA input_datetime returns a naive datetime string (e.g. "2025-07-15T14:30:00")
+          // with no timezone suffix. HA stores internally in UTC, so we need to append
+          // 'Z' so JavaScript parses it as UTC rather than the server's local timezone.
+          let stateStr = result.value.state;
+          if (!stateStr.endsWith('Z') && !stateStr.includes('+') && !stateStr.includes('[')) {
+            stateStr = stateStr + 'Z';
+          }
+          const parsed = new Date(stateStr);
           if (!isNaN(parsed.getTime())) {
             times.push(parsed);
           }
@@ -376,6 +391,97 @@ export class DecisionEngine {
     return false;
   }
 
+  /**
+   * Estimate when the next mow is likely to happen.
+   * Considers: growth threshold, rain delay, min interval, mowing windows.
+   * Returns null if we're already at a mow decision.
+   */
+  private estimateNextMow(
+    growth: GrowthResult,
+    rainDelay: RainDelayResult,
+    lastMowTime: Date | null,
+    hoursSinceMow: number,
+    growthLowerLimit: number,
+    minTimeBetweenMows: number,
+  ): Date | null {
+    const now = Date.now();
+    const growthMm = growth.growth_since_mow_mm;
+    const dailyGrowth = growth.daily_growth_mm;
+
+    // Hours until growth reaches lower limit (using current daily rate)
+    const growthRemaining = Math.max(0, growthLowerLimit - growthMm);
+    const hoursUntilGrowthReady = dailyGrowth > 0
+      ? (growthRemaining / dailyGrowth) * 24
+      : Infinity;
+
+    // Hours until rain delay clears
+    const hoursUntilRainCleared = rainDelay.is_safe_to_mow
+      ? 0
+      : rainDelay.earliest_delay_hours - (rainDelay.details.hours_since_rain || 0);
+
+    // Hours until min interval is met
+    const hoursUntilMinInterval = Math.max(0, minTimeBetweenMows - hoursSinceMow);
+
+    // The predicted time is the max of the three constraints
+    let hoursUntilReady = Math.max(hoursUntilGrowthReady, hoursUntilRainCleared, hoursUntilMinInterval);
+    if (hoursUntilReady === Infinity || hoursUntilReady > 720) {
+      // More than 30 days away — don't show a prediction
+      return null;
+    }
+
+    let predictedTime = new Date(now + hoursUntilReady * 3600000);
+
+    // Adjust for mowing windows — if the predicted time falls outside a window,
+    // bump it forward to the next valid window start time.
+    predictedTime = this.adjustToMowingWindow(predictedTime);
+
+    return predictedTime;
+  }
+
+  /**
+   * If the given time falls outside all mowing windows, advance it to the
+   * start of the next valid window (may be the same day or a later day).
+   */
+  private adjustToMowingWindow(time: Date): Date {
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+    // Check up to 7 days ahead
+    for (let d = 0; d < 7; d++) {
+      const checkDate = new Date(time);
+      checkDate.setDate(time.getDate() + d);
+      const day = dayNames[checkDate.getDay()];
+      const windows = this.config.mowingWindows[day as keyof typeof this.config.mowingWindows];
+
+      if (!windows || windows.length === 0) {
+        // No window restriction for this day — any time is valid
+        // Return the original time shifted to this day
+        return checkDate;
+      }
+
+      if (d === 0) {
+        // Same day — check if the original time falls within any window
+        const currentMin = time.getHours() * 60 + time.getMinutes();
+        for (const w of windows) {
+          const [sh, sm] = w.start.split(':').map(Number);
+          const [eh, em] = w.end.split(':').map(Number);
+          if (currentMin >= sh * 60 + sm && currentMin <= eh * 60 + em) {
+            return time;
+          }
+        }
+        // Time is outside all windows today — try tomorrow
+      } else {
+        // Different day — use the earliest window start on that day
+        const [sh, sm] = windows[0].start.split(':').map(Number);
+        const result = new Date(checkDate);
+        result.setHours(sh, sm, 0, 0);
+        return result;
+      }
+    }
+
+    // Fallback: 7 days from now
+    return new Date(time.getTime() + 7 * 24 * 3600000);
+  }
+
   private saveToDb(result: DecisionResult, growth: GrowthResult, rainDelay: RainDelayResult): void {
     const runStmt = this.db.prepare(`
       INSERT INTO algorithm_runs (run_time, growth_estimate, rain_delay_hours, decision, decision_reason, next_run_time)
@@ -491,12 +597,9 @@ export class DecisionEngine {
 
   /**
    * Write algorithm predictions to HA input helpers.
-   * BLOCKED when readonlyMode is true.
+   * Not blocked by readonlyMode - helpers are informational, not mower control.
    */
   public async writeToHAHelpers(result: DecisionResult): Promise<void> {
-    if (this.config.readonlyMode) {
-      return;
-    }
     if (!this.ha || !this.config.haInputHelpers.enabled) {
       return;
     }
@@ -507,14 +610,22 @@ export class DecisionEngine {
       // Growth estimate
       await this.ha.writeInputNumber(helpers.growthEstimateNumber, result.growth_estimate.growth_since_mow_mm);
 
-      // Rain delay hours
-      await this.ha.writeInputNumber(helpers.rainDelayNumber, result.rain_delay.earliest_delay_hours);
+      // Rain delay hours (remaining, 0 when safe — matches DB logic)
+      const remainingDelay = result.rain_delay.is_safe_to_mow
+        ? 0
+        : Math.max(0, result.rain_delay.earliest_delay_hours - (result.rain_delay.details.hours_since_rain || 0));
+      await this.ha.writeInputNumber(helpers.rainDelayNumber, remainingDelay);
 
       // Mow recommended
       await this.ha.writeInputBoolean(helpers.mowRecommendedBoolean, result.should_mow);
 
       // Mow reason
-      await this.ha.writeInputSelect(helpers.mowReasonSelect, result.reason);
+      await this.ha.writeInputText(helpers.mowReasonText, result.reason);
+
+      // Predicted next mow time (datetime for input_datetime)
+      if (result.predicted_next_mow) {
+        await this.ha.writeInputDatetime(helpers.nextMowDateTime, result.predicted_next_mow);
+      }
 
       logger.info('HA input helpers updated');
     } catch (err) {

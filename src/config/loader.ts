@@ -285,10 +285,25 @@ export class ConfigLoader {
   ): Record<string, unknown> {
     const versionKey = 'configVersion';
     const savedVersion = config[versionKey] as number | undefined;
-    const currentVersion = 4;
+    const currentVersion = 5;
 
     if ((savedVersion ?? 0) >= currentVersion) {
       return config;
+    }
+
+    // Migration v4 -> v5: rename nextMowNumber to nextMowDateTime (input_number -> input_datetime)
+    if ((savedVersion ?? 0) < 5) {
+      const helpers = config.haInputHelpers as Record<string, unknown> | undefined;
+      if (helpers && typeof helpers === 'object') {
+        if ('nextMowNumber' in helpers) {
+          helpers.nextMowDateTime = helpers.nextMowNumber;
+          delete helpers.nextMowNumber;
+        }
+        // Also set the default if neither key exists
+        if (!('nextMowDateTime' in helpers)) {
+          helpers.nextMowDateTime = 'input_datetime.next_predicted_mow';
+        }
+      }
     }
 
     // Migration v3 -> v4: add per-sensor units for existing sensors without units
